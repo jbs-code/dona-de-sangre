@@ -2,6 +2,7 @@
 import BaseLayout from '../../components/ui/BaseLayout.astro'
 import AlertError from '../../components/ui/AlertError.astro'
 import AuthCard from '../../features/auth/components/AuthCard.astro'
+import FormField from '../../features/auth/components/FormField.astro'
 
 const ERROR_MESSAGES = {
 	invalid_credentials: 'Correo o contraseña incorrectos',
@@ -25,12 +26,8 @@ const errorMessage =
 					</AlertError>
 				)
 			}
-			<fieldset class="fieldset">
-				<label class="label" for="email">Correo</label>
-				<input id="email" name="email" type="email" class="input w-full" required autocomplete="email" />
-			</fieldset>
-			<fieldset class="fieldset">
-				<label class="label" for="password">Contraseña</label>
+			<FormField id="email" label="Correo" type="email" required autocomplete="email" />
+			<FormField id="password" label="Contraseña">
 				<div class="input w-full">
 					<input id="password" name="password" type="password" class="grow" required autocomplete="current-password" />
 					<button id="password-toggle" type="button" class="btn btn-ghost btn-square btn-sm hidden" aria-label="Mostrar contraseña">
@@ -49,7 +46,7 @@ const errorMessage =
 				<div class="text-right">
 					<a href="#" class="link link-hover text-sm">¿Olvidaste tu contraseña?</a>
 				</div>
-			</fieldset>
+			</FormField>
 			<button id="login-submit" type="submit" class="btn btn-primary w-full">Iniciar sesión</button>
 		</form>
 	</AuthCard>
