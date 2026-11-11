@@ -1,5 +1,5 @@
 ---
-import '../styles/global.css'
+import BaseLayout from '../components/ui/BaseLayout.astro'
 import type { Database } from '../lib/database.types'
 
 const claims = Astro.locals.claims
@@ -25,15 +25,7 @@ const ROL_INFO: Record<Rol, { label: string; className: string }> = {
 const rolInfo = usuario ? ROL_INFO[usuario.rol] : null
 ---
 
-<html lang="es">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Panel | Dona de sangre</title>
-	</head>
-	<body class="bg-base-200">
+<BaseLayout title="Panel | Dona de sangre">
 		<div class="flex min-h-svh flex-col">
 			<header class="navbar bg-base-100 px-4 shadow-sm">
 				<div class="navbar-start min-w-0">
@@ -77,5 +69,4 @@ const rolInfo = usuario ? ROL_INFO[usuario.rol] : null
 				</section>
 			</main>
 		</div>
-	</body>
-</html>
+</BaseLayout>
