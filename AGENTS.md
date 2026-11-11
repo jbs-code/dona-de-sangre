@@ -8,6 +8,63 @@
 - Supabase Auth is wired through `@supabase/ssr` with server-side cookies: `src/lib/supabase.ts`, `src/middleware.ts` (session refresh and `/dashboard` protection), `POST /api/auth/login` and `POST /api/auth/logout`. `public.usuarios` stores the profile and role (`admin` / `supervisor` / `capturador`) with RLS; it never stores passwords.
 - Pages: `src/pages/auth/login.astro`, protected `src/pages/dashboard.astro`, `src/pages/auth/confirm.astro` (verifies the invite token), `src/pages/auth/update-password.astro` (GET form + POST handler) and API routes `src/pages/api/{auth/login,auth/logout,invitations}.ts`; `/` redirects to `/auth/login` through `redirects` in `astro.config.mjs`. Only stylesheet: `src/styles/global.css`.
 
+## Structure
+
+```text
+src/
+├── middleware.ts                          # session refresh + /dashboard protection
+├── env.d.ts                               # astro:env types
+├── styles/global.css                      # Tailwind 4 + daisyUI setup (only stylesheet)
+├── lib/                                   # multi-feature infra
+│   ├── database.types.ts                  # Supabase types generated from the MCP
+│   └── supabase.ts                        # @supabase/ssr server client factory
+├── components/
+│   └── ui/                                # components used across features
+│       ├── BaseLayout.astro               # <head>, <body class="bg-base-200">, imports global.css
+│       └── AlertError.astro               # role="alert" + alert alert-error (+ alert-soft)
+├── features/
+│   ├── auth/
+│   │   └── components/
+│   │       ├── AuthCard.astro             # main > section.card > card-body
+│   │       ├── FormField.astro            # fieldset + label + input (or slot)
+│   │       └── PasswordInput.astro        # div.input + password field + toggle + its script
+│   ├── dashboard/
+│   │   └── components/
+│   │       └── AppNavbar.astro            # navbar + «Cerrar sesión» logout form
+│   └── invitations/
+│       └── lib/
+│           ├── email.ts                   # nodemailer SMTP sender
+│           └── supabase-admin.ts          # admin client using SUPABASE_SECRET_API_KEY
+└── pages/
+    ├── dashboard.astro
+    ├── auth/{login,confirm,update-password}.astro
+    └── api/
+        ├── invitations.ts
+        └── auth/{login,logout}.ts
+```
+
+Rules:
+
+- `src/pages/` holds routing and frontmatter only (redirects, data fetching, `Astro.locals`); markup lives in components.
+- Where a component lives: `src/components/ui/` if it is used by several features, `src/features/<f>/components/` if it belongs to a single feature.
+- `src/lib/` is multi-feature infra (Supabase client, generated types). Code used by a single feature goes to `src/features/<f>/lib/`.
+
+### Recipe: add a feature
+
+1. Create `src/features/<name>/` with `components/` and/or `lib/` as needed.
+2. Add its routes as pages under `src/pages/` (Astro requires pages there); keep redirects and data fetching in the page frontmatter.
+3. Put feature-only TypeScript helpers in `src/features/<name>/lib/`; import shared infra (`src/lib/supabase.ts`, `database.types.ts`) from there.
+4. If it needs new env vars, declare them server-only in `astro:env` (`context: 'server'`, `access: 'secret'`) and add placeholders to `.env.template`.
+5. Verify with `npm run build` and `npx tsc --noEmit`.
+
+### Recipe: add a component
+
+1. Extract markup only when it is repeated in two or more places (the navbar and the password field were extracted explicitly to isolate SPEC 04, even with a single use).
+2. Place it in `src/components/ui/` (cross-feature) or `src/features/<f>/components/` (single feature).
+3. Props only for what actually varies; no speculative props. Content that varies per use goes through `<slot />`.
+4. Move the markup wholesale: the served HTML must not change (Astro strips source indentation, so only element structure matters).
+5. Verify with `npm run build`, `npx tsc --noEmit` and, for visible changes, a browser check.
+
 ## Commands
 
 - `npm run dev` / `npm run build` / `npm run preview`.
@@ -31,7 +88,7 @@ Manage it with `npx astro dev stop`, `npx astro dev status`, and `npx astro dev 
 
 - `src/styles/global.css` is the entire setup: `@import "tailwindcss";` plus `@plugin "daisyui";`.
 - Tailwind 4 is configured only through the Vite plugin in `astro.config.mjs`. Do not add `tailwind.config.js` (deprecated in v4).
-- There is no layout component: each page must import `src/styles/global.css` itself (`src/pages/auth/login.astro` shows the pattern).
+- `src/components/ui/BaseLayout.astro` imports `src/styles/global.css`; pages wrap their markup in it instead of importing the stylesheet themselves.
 - Read the `daisyui` skill in `.agents/skills/daisyui/` before writing markup or choosing component classes.
 
 ## Supabase
@@ -45,13 +102,21 @@ Manage it with `npx astro dev stop`, `npx astro dev status`, and `npx astro dev 
 - Types are generated with `generate_typescript_types` from the MCP and stored in `src/lib/database.types.ts`; the server client is `SupabaseClient<Database>`.
 - The Supabase MCP server is configured globally in `~/.config/opencode/opencode.jsonc` (project ref `swguryvbjzosovilywxf`), not in this repo's `opencode.jsonc`. Use it to inspect tables, migrations, logs, and advisors before changing the remote project.
 
+## Security
+
+Unchanged rules, restated here so they are never lost during refactors:
+
+- Server-only secrets: `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SECRET_API_KEY` and `SMTP_*` are `astro:env` server secrets; they must never appear in client code, in the served HTML/JS, or in `dist/`.
+- RLS on every table in an exposed schema, with per-table policies (details in Supabase above).
+- `service_role`/secret keys only in server code: `SUPABASE_SECRET_API_KEY` is read by `src/features/invitations/lib/supabase-admin.ts` from API routes, never from pages or client scripts.
+
 ## Email (SMTP)
 
-- The app sends its own invitation emails with `nodemailer` (`src/lib/email.ts`): Gmail SMTP (`smtp.gmail.com`, port 465, direct TLS) using an app password. `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `SUPABASE_SECRET_API_KEY` are `astro:env` server secrets; only placeholders go in `.env.template`.
+- The app sends its own invitation emails with `nodemailer` (`src/features/invitations/lib/email.ts`): Gmail SMTP (`smtp.gmail.com`, port 465, direct TLS) using an app password. `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `SUPABASE_SECRET_API_KEY` are `astro:env` server secrets; only placeholders go in `.env.template`.
 - Gmail allows about 500 emails per day (fewer on new accounts) — enough for the lab. Migrate to another SMTP (Resend, SendGrid…) if the volume grows.
 - If the Google app password is revoked or expires, sends fail: the error is logged on the server and `POST /api/invitations` answers a generic message. To rotate it, generate a new app password and update `SMTP_PASS`.
 - Never use Supabase Dashboard's «Invite user» button: it would send a second email from Supabase. The app calls `auth.admin.generateLink` (returns `hashed_token` and sends nothing) and mails the link itself.
-- `SUPABASE_SECRET_API_KEY` (the `sb_secret_...` key, the current replacement for `service_role`) is server-only: read by `src/lib/supabase-admin.ts` from API routes. It must never appear in client code, in the served HTML/JS, or in `dist/`.
+- `SUPABASE_SECRET_API_KEY` (the `sb_secret_...` key, the current replacement for `service_role`) is server-only: read by `src/features/invitations/lib/supabase-admin.ts` from API routes. It must never appear in client code, in the served HTML/JS, or in `dist/`.
 
 ## Spec workflow
 
@@ -60,7 +125,7 @@ Manage it with `npx astro dev stop`, `npx astro dev status`, and `npx astro dev 
 - `/spec-impl` executes the implementation plan **one numbered step at a time**: implement exactly one step, summarize the files touched and show the diff, then **stop and wait for human review**. Never chain several steps in one go; continue only after the user explicitly confirms (`yes`, `go`, equivalent). If there are no steps left, say so and stop.
 - Never commit automatically, per step or at the end; only when the user explicitly asks. Only a human moves a spec to `Approved` and to `Implemented`. `/spec-impl` creates/switches to branch `spec-NN-slug` before implementing.
 - `spec-verifier` only verifies and edits files under `specs/**`; it must not change app code or the spec's status.
-- `specs/` exists and currently holds `specs/01-login.md` (status Implementado). New specs follow `specs/NN-slug.md`.
+- `specs/` holds `specs/01-login.md`, `specs/02-auth-supabase.md`, `specs/03-invitacion-confirmacion.md` and `specs/04-toggle-visibilidad-contrasena.md` (all `Implementado`), plus `specs/05-refactor-fdd-componentes.md`. New specs follow `specs/NN-slug.md`.
 - `spec-verifier`'s shell allowlist only matches bare `astro dev *`, which fails here (no global `astro`). Update it to `npx astro dev *` before relying on that agent.
 
 ## References
