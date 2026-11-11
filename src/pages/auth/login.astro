@@ -1,5 +1,5 @@
 ---
-import '../../styles/global.css'
+import BaseLayout from '../../components/ui/BaseLayout.astro'
 
 const ERROR_MESSAGES = {
 	invalid_credentials: 'Correo o contraseña incorrectos',
@@ -12,15 +12,7 @@ const errorMessage =
 	(errorKey && ERROR_MESSAGES[errorKey as keyof typeof ERROR_MESSAGES]) || null;
 ---
 
-<html lang="es">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Iniciar sesión | Dona de sangre</title>
-	</head>
-	<body class="bg-base-200">
+<BaseLayout title="Iniciar sesión | Dona de sangre">
 		<main class="flex min-h-svh items-center justify-center p-4 sm:p-6">
 			<section class="card w-full max-w-sm bg-base-100 shadow-xl">
 				<div class="card-body gap-4">
@@ -90,5 +82,4 @@ const errorMessage =
 				submitButton.textContent = 'Ingresando…'
 			})
 		</script>
-	</body>
-</html>
+</BaseLayout>
