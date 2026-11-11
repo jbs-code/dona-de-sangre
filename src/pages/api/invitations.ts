@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { sendInviteEmail } from '../../lib/email';
-import { createSupabaseAdminClient } from '../../lib/supabase-admin';
+import { sendInviteEmail } from '../../features/invitations/lib/email';
+import { createSupabaseAdminClient } from '../../features/invitations/lib/supabase-admin';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GENERIC_INVITE_ERROR = 'No se pudo generar la invitación.';
