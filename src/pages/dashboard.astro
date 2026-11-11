@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../components/ui/BaseLayout.astro'
 import AlertError from '../components/ui/AlertError.astro'
+import AppNavbar from '../features/dashboard/components/AppNavbar.astro'
 import type { Database } from '../lib/database.types'
 
 const claims = Astro.locals.claims
@@ -27,47 +28,38 @@ const rolInfo = usuario ? ROL_INFO[usuario.rol] : null
 ---
 
 <BaseLayout title="Panel | Dona de sangre">
-		<div class="flex min-h-svh flex-col">
-			<header class="navbar bg-base-100 px-4 shadow-sm">
-				<div class="navbar-start min-w-0">
-					<span class="truncate font-semibold">Dona de sangre</span>
-				</div>
-				<div class="navbar-end">
-					<form method="post" action="/api/auth/logout">
-						<button type="submit" class="btn btn-ghost btn-sm">Cerrar sesión</button>
-					</form>
-				</div>
-			</header>
+	<div class="flex min-h-svh flex-col">
+		<AppNavbar />
 
-			<main class="flex flex-1 items-start justify-center p-4 sm:items-center sm:p-6">
-				<section class="card w-full max-w-md bg-base-100 shadow-xl">
-					<div class="card-body gap-4">
-						<h1 class="card-title text-xl">Tu perfil</h1>
+		<main class="flex flex-1 items-start justify-center p-4 sm:items-center sm:p-6">
+			<section class="card w-full max-w-md bg-base-100 shadow-xl">
+				<div class="card-body gap-4">
+					<h1 class="card-title text-xl">Tu perfil</h1>
 
-						{usuario && rolInfo ? (
-							<dl class="flex flex-col gap-3">
-								<div class="min-w-0">
-									<dt class="text-sm text-base-content/60">Nombre</dt>
-									<dd class="font-medium break-words">{usuario.nombre}</dd>
-								</div>
-								<div class="min-w-0">
-									<dt class="text-sm text-base-content/60">Correo</dt>
-									<dd class="font-medium break-all">{usuario.email}</dd>
-								</div>
-								<div class="min-w-0">
-									<dt class="text-sm text-base-content/60">Rol</dt>
-									<dd class="mt-1">
-										<span class={`badge ${rolInfo.className}`}>{rolInfo.label}</span>
-									</dd>
-								</div>
-							</dl>
-						) : (
-							<AlertError>
-								<span>No se encontró tu perfil{error ? `: ${error.message}` : '.'}</span>
-							</AlertError>
-						)}
-					</div>
-				</section>
-			</main>
-		</div>
+					{usuario && rolInfo ? (
+						<dl class="flex flex-col gap-3">
+							<div class="min-w-0">
+								<dt class="text-sm text-base-content/60">Nombre</dt>
+								<dd class="font-medium break-words">{usuario.nombre}</dd>
+							</div>
+							<div class="min-w-0">
+								<dt class="text-sm text-base-content/60">Correo</dt>
+								<dd class="font-medium break-all">{usuario.email}</dd>
+							</div>
+							<div class="min-w-0">
+								<dt class="text-sm text-base-content/60">Rol</dt>
+								<dd class="mt-1">
+									<span class={`badge ${rolInfo.className}`}>{rolInfo.label}</span>
+								</dd>
+							</div>
+						</dl>
+					) : (
+						<AlertError>
+							<span>No se encontró tu perfil{error ? `: ${error.message}` : '.'}</span>
+						</AlertError>
+					)}
+				</div>
+			</section>
+		</main>
+	</div>
 </BaseLayout>
