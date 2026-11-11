@@ -38,7 +38,8 @@ if (!hasError) {
 	return Astro.redirect(next);
 }
 
-Astro.response.status = 400;
+// 200 a propósito: un estado de error con status 4xx/5xx hace que el navegador
+// registre «Failed to load resource» en consola (criterio de flujo sin errores).
 ---
 
 <html lang="es">

@@ -16,7 +16,7 @@ Este spec cierra el alta real. La app genera la invitación con `admin.generateL
 **Incluido:**
 
 - Servidor SMTP con `nodemailer` y una cuenta Gmail (credenciales solo en variables de entorno de servidor).
-- Cliente admin server-only con `SUPABASE_SERVICE_ROLE_KEY` para llamar a `auth.admin.generateLink`.
+- Cliente admin server-only con `SUPABASE_SECRET_API_KEY` para llamar a `auth.admin.generateLink`.
 - Ruta `POST /api/invitations` protegida con sesión y rol `admin` que genera el enlace y envía el correo.
 - Plantilla de correo de invitación propia (texto/HTML mínimo en español) con el enlace a `/auth/confirm`.
 - Ruta `GET /auth/confirm` que verifica el token con `verifyOtp` y redirige.
@@ -51,7 +51,7 @@ Todos se declaran en `astro.config.mjs` con `context: 'server'` y `access: 'secr
 
 | Variable                      | Uso                                                          |
 | ----------------------------- | ------------------------------------------------------------ |
-| `SUPABASE_SERVICE_ROLE_KEY`   | Cliente admin server-only para `generateLink`. Nunca en cliente. |
+| `SUPABASE_SECRET_API_KEY`   | Cliente admin server-only para `generateLink`. Nunca en cliente. |
 | `SMTP_HOST`                   | `smtp.gmail.com`.                                            |
 | `SMTP_PORT`                   | `465` (conexión TLS directa).                                |
 | `SMTP_USER`                   | Cuenta Gmail que envía; también es la dirección «De».        |
@@ -79,7 +79,7 @@ Reglas de `next`:
 ## Plan de implementación
 
 1. Configurar Supabase Auth en el Dashboard: Site URL con la URL de producción, Redirect URLs con `http://localhost:4321/**` y el dominio de Netlify, mínimo de contraseña de 8 caracteres y «Confirm email» activo. Verificar que el proyecto rechaza una contraseña de 7 caracteres.
-2. Preparar Gmail: activar 2FA en la cuenta y generar una contraseña de aplicación; instalar `nodemailer` (v10 trae sus propios tipos); declarar `SUPABASE_SERVICE_ROLE_KEY` y `SMTP_*` en `astro.config.mjs`, rellenar `.env` local y dejar placeholders en `.env.template`. Verificar el envío con un script temporal que mande un correo de prueba y comprobar que llega.
+2. Preparar Gmail: activar 2FA en la cuenta y generar una contraseña de aplicación; instalar `nodemailer` (v10 trae sus propios tipos); declarar `SUPABASE_SECRET_API_KEY` y `SMTP_*` en `astro.config.mjs`, rellenar `.env` local y dejar placeholders en `.env.template`. Verificar el envío con un script temporal que mande un correo de prueba y comprobar que llega.
 3. Crear `src/lib/supabase-admin.ts` con el cliente `service_role`, importado únicamente desde rutas de API. Verificar que el HTML/JS servido al cliente no contiene la clave.
 4. Crear `src/lib/email.ts`: transporter de nodemailer (puerto 465, TLS) y `sendInviteEmail({ email, tokenHash })` que construye la URL a `/auth/confirm` desde el origen de la petición y envía texto + HTML mínimo en español, sin contraseñas, con la dirección invitada, el aviso de caducidad (1 hora) y «De» = `SMTP_USER`.
 5. Crear `POST /api/invitations`: valida el formato del email, exige sesión con `getClaims()` (401 si no la hay), consulta `public.usuarios` y exige `rol = 'admin'` (403 si no), llama a `generateLink`, devuelve error genérico si el correo ya tiene cuenta, envía el correo y responde 200 con JSON. Los fallos de SMTP se loguean en servidor y responden un error genérico. Verificar con curl: sin sesión 401, con rol `capturador` 403, con admin 200 y llega exactamente un correo (el de la app; ninguno de Supabase).
@@ -92,7 +92,7 @@ Reglas de `next`:
 ## Criterios de aceptación
 
 - [ ] El envío de prueba con `nodemailer` desde local llega a la bandeja de la cuenta Gmail.
-- [ ] `SUPABASE_SERVICE_ROLE_KEY` y `SMTP_*` están en `.env` y en las variables de Netlify, con solo placeholders en `.env.template`.
+- [ ] `SUPABASE_SECRET_API_KEY` y `SMTP_*` están en `.env` y en las variables de Netlify, con solo placeholders en `.env.template`.
 - [ ] El repositorio no contiene credenciales SMTP ni la clave `service_role`.
 - [ ] La clave `service_role` y las credenciales SMTP no aparecen en el HTML/JS servido al cliente.
 - [ ] `POST /api/invitations` sin sesión devuelve 401.

@@ -6,7 +6,7 @@
 - App must be responsive: it has to read clearly on smartphones and PCs (verified at 320 px, no horizontal scroll).
 - Astro 7 SSR site (`output: 'server'`) with the `@astrojs/netlify` adapter, Tailwind CSS 4 (Vite plugin) and daisyUI 5. No UI framework integration (React/Vue/Svelte).
 - Supabase Auth is wired through `@supabase/ssr` with server-side cookies: `src/lib/supabase.ts`, `src/middleware.ts` (session refresh and `/dashboard` protection), `POST /api/auth/login` and `POST /api/auth/logout`. `public.usuarios` stores the profile and role (`admin` / `supervisor` / `capturador`) with RLS; it never stores passwords.
-- Pages: `src/pages/auth/login.astro`, protected `src/pages/dashboard.astro` and `src/pages/api/auth/{login,logout}.ts`; `/` redirects to `/auth/login` through `redirects` in `astro.config.mjs`. Only stylesheet: `src/styles/global.css`.
+- Pages: `src/pages/auth/login.astro`, protected `src/pages/dashboard.astro`, `src/pages/auth/confirm.astro` (verifies the invite token), `src/pages/auth/update-password.astro` (GET form + POST handler) and API routes `src/pages/api/{auth/login,auth/logout,invitations}.ts`; `/` redirects to `/auth/login` through `redirects` in `astro.config.mjs`. Only stylesheet: `src/styles/global.css`.
 
 ## Commands
 
@@ -38,12 +38,20 @@ Manage it with `npx astro dev stop`, `npx astro dev status`, and `npx astro dev 
 
 - Read `.agents/skills/supabase/SKILL.md` before any Supabase task, and `.agents/skills/supabase-postgres-best-practices/SKILL.md` before schema, migration, SQL, index, or RLS work. Supabase changes often: verify against the current docs/changelog instead of memory.
 - `@supabase/supabase-js`, `@supabase/ssr` and the `@astrojs/netlify` SSR adapter are installed; the site is no longer static.
-- Env vars live in `.env` (gitignored) and `.env.template` (tracked): `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_DB_PASSWORD`. `.env` is populated locally; never commit it or copy real values into `.env.template`.
+- Env vars live in `.env` (gitignored) and `.env.template` (tracked): `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_DB_PASSWORD`, plus `SUPABASE_SECRET_API_KEY` and `SMTP_*` (see the Email section below). `.env` is populated locally; never commit it or copy real values into `.env.template`.
 - `SUPABASE_URL` and `SUPABASE_KEY` are server-only: declared in `astro:env` as `context: 'server'`, `access: 'secret'` and read only by `src/lib/supabase.ts`. Never rename them to `PUBLIC_*` or expose them to client code. `SUPABASE_DB_PASSWORD` is CLI/MCP-only and must never reach the client.
 - Never use a `service_role`/secret key in frontend code. Enable RLS on every table in an exposed schema and write policies per table, not a blanket `auth.uid()`. `public.usuarios` already has RLS and `select`-only grants for `authenticated`.
 - Session cookies are `httpOnly`, `sameSite=lax` and `secure` only in production; requests are authorized with `getClaims()`, not `getSession()`. Only routes under `/dashboard` are protected.
 - Types are generated with `generate_typescript_types` from the MCP and stored in `src/lib/database.types.ts`; the server client is `SupabaseClient<Database>`.
 - The Supabase MCP server is configured globally in `~/.config/opencode/opencode.jsonc` (project ref `swguryvbjzosovilywxf`), not in this repo's `opencode.jsonc`. Use it to inspect tables, migrations, logs, and advisors before changing the remote project.
+
+## Email (SMTP)
+
+- The app sends its own invitation emails with `nodemailer` (`src/lib/email.ts`): Gmail SMTP (`smtp.gmail.com`, port 465, direct TLS) using an app password. `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `SUPABASE_SECRET_API_KEY` are `astro:env` server secrets; only placeholders go in `.env.template`.
+- Gmail allows about 500 emails per day (fewer on new accounts) — enough for the lab. Migrate to another SMTP (Resend, SendGrid…) if the volume grows.
+- If the Google app password is revoked or expires, sends fail: the error is logged on the server and `POST /api/invitations` answers a generic message. To rotate it, generate a new app password and update `SMTP_PASS`.
+- Never use Supabase Dashboard's «Invite user» button: it would send a second email from Supabase. The app calls `auth.admin.generateLink` (returns `hashed_token` and sends nothing) and mails the link itself.
+- `SUPABASE_SECRET_API_KEY` (the `sb_secret_...` key, the current replacement for `service_role`) is server-only: read by `src/lib/supabase-admin.ts` from API routes. It must never appear in client code, in the served HTML/JS, or in `dist/`.
 
 ## Spec workflow
 
