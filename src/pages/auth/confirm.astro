@@ -1,5 +1,5 @@
 ---
-import '../../styles/global.css';
+import BaseLayout from '../../components/ui/BaseLayout.astro';
 import type { EmailOtpType } from '@supabase/supabase-js';
 
 const DEFAULT_NEXT = '/auth/update-password';
@@ -42,15 +42,7 @@ if (!hasError) {
 // registre «Failed to load resource» en consola (criterio de flujo sin errores).
 ---
 
-<html lang="es">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Enlace no válido | Dona de sangre</title>
-	</head>
-	<body class="bg-base-200">
+<BaseLayout title="Enlace no válido | Dona de sangre">
 		<main class="flex min-h-svh items-center justify-center p-4 sm:p-6">
 			<section class="card w-full max-w-sm bg-base-100 shadow-xl">
 				<div class="card-body gap-4">
@@ -62,5 +54,4 @@ if (!hasError) {
 				</div>
 			</section>
 		</main>
-	</body>
-</html>
+</BaseLayout>
