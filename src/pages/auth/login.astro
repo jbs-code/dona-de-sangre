@@ -1,7 +1,15 @@
 ---
 import '../../styles/global.css'
 
-const showError = Astro.url.searchParams.get('error') === 'invalid_credentials'
+const ERROR_MESSAGES = {
+	invalid_credentials: 'Correo o contraseña incorrectos',
+	link_invalido: 'El enlace de invitación no es válido o ha caducado. Pide una nueva invitación al administrador.'
+} as const;
+
+// Clave desconocida → undefined → null
+const errorKey = Astro.url.searchParams.get('error');
+const errorMessage =
+	(errorKey && ERROR_MESSAGES[errorKey as keyof typeof ERROR_MESSAGES]) || null;
 ---
 
 <html lang="es">
@@ -19,9 +27,9 @@ const showError = Astro.url.searchParams.get('error') === 'invalid_credentials'
 					<h1 class="card-title justify-center text-2xl">Dona de sangre</h1>
 					<form id="login-form" class="flex flex-col gap-4" method="post" action="/api/auth/login">
 						{
-							showError && (
+							errorMessage && (
 								<div role="alert" class="alert alert-error alert-soft">
-									<span>Correo o contraseña incorrectos</span>
+									<span>{errorMessage}</span>
 								</div>
 							)
 						}
