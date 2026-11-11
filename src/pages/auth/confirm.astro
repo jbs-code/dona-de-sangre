@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../components/ui/BaseLayout.astro';
+import AuthCard from '../../features/auth/components/AuthCard.astro';
 import type { EmailOtpType } from '@supabase/supabase-js';
 
 const DEFAULT_NEXT = '/auth/update-password';
@@ -43,15 +44,11 @@ if (!hasError) {
 ---
 
 <BaseLayout title="Enlace no válido | Dona de sangre">
-		<main class="flex min-h-svh items-center justify-center p-4 sm:p-6">
-			<section class="card w-full max-w-sm bg-base-100 shadow-xl">
-				<div class="card-body gap-4">
-					<h1 class="card-title justify-center text-2xl">Enlace no válido</h1>
-					<div role="alert" class="alert alert-error alert-soft">
-						<span>{ERROR_MESSAGE}</span>
-					</div>
-					<a href="/auth/login" class="btn btn-primary w-full">Ir a iniciar sesión</a>
-				</div>
-			</section>
-		</main>
+	<AuthCard>
+		<h1 class="card-title justify-center text-2xl">Enlace no válido</h1>
+		<div role="alert" class="alert alert-error alert-soft">
+			<span>{ERROR_MESSAGE}</span>
+		</div>
+		<a href="/auth/login" class="btn btn-primary w-full">Ir a iniciar sesión</a>
+	</AuthCard>
 </BaseLayout>
