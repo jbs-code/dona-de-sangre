@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../components/ui/BaseLayout.astro'
+import AlertError from '../components/ui/AlertError.astro'
 import type { Database } from '../lib/database.types'
 
 const claims = Astro.locals.claims
@@ -47,7 +48,7 @@ const rolInfo = usuario ? ROL_INFO[usuario.rol] : null
 							<dl class="flex flex-col gap-3">
 								<div class="min-w-0">
 									<dt class="text-sm text-base-content/60">Nombre</dt>
-									<dd class="font-medium break-words">{usuario.nombre}</dd>
+									<dd class="font-medium wrap-break-word">{usuario.nombre}</dd>
 								</div>
 								<div class="min-w-0">
 									<dt class="text-sm text-base-content/60">Correo</dt>
@@ -61,9 +62,9 @@ const rolInfo = usuario ? ROL_INFO[usuario.rol] : null
 								</div>
 							</dl>
 						) : (
-							<div role="alert" class="alert alert-error">
+							<AlertError>
 								<span>No se encontró tu perfil{error ? `: ${error.message}` : '.'}</span>
-							</div>
+							</AlertError>
 						)}
 					</div>
 				</section>

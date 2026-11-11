@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../components/ui/BaseLayout.astro'
+import AlertError from '../../components/ui/AlertError.astro'
 
 const ERROR_MESSAGES = {
 	invalid_credentials: 'Correo o contraseña incorrectos',
@@ -20,9 +21,9 @@ const errorMessage =
 					<form id="login-form" class="flex flex-col gap-4" method="post" action="/api/auth/login">
 						{
 							errorMessage && (
-								<div role="alert" class="alert alert-error alert-soft">
+								<AlertError soft>
 									<span>{errorMessage}</span>
-								</div>
+								</AlertError>
 							)
 						}
 						<fieldset class="fieldset">
