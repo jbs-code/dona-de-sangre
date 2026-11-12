@@ -1,0 +1,49 @@
+---
+import { ROL_INFO } from '../../../lib/roles'
+import type { UsuarioListItem } from '../lib/users-list'
+
+interface Props {
+	usuarios: UsuarioListItem[]
+	search: string
+}
+
+const { usuarios, search } = Astro.props
+---
+
+{
+	usuarios.length === 0 ? (
+		<p class="py-6 text-center text-base-content/70">
+			{search
+				? `No se encontraron usuarios que coincidan con «${search}».`
+				: 'Todavía no hay usuarios registrados.'}
+		</p>
+	) : (
+		<div class="overflow-x-auto">
+			<table class="table">
+				<caption class="pb-2 text-left text-sm text-base-content/60">
+					Usuarios registrados en el laboratorio
+				</caption>
+				<thead>
+					<tr>
+						<th>Nombre</th>
+						<th>Correo</th>
+						<th>Rol</th>
+					</tr>
+				</thead>
+				<tbody>
+					{usuarios.map((usuario) => (
+						<tr>
+							<td class="font-medium">{usuario.nombre}</td>
+							<td class="break-all">{usuario.email}</td>
+							<td>
+								<span class={`badge ${ROL_INFO[usuario.rol].className}`}>
+									{ROL_INFO[usuario.rol].label}
+								</span>
+							</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</div>
+	)
+}
