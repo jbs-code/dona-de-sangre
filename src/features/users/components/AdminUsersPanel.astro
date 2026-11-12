@@ -1,0 +1,26 @@
+---
+import AlertError from '../../../components/ui/AlertError.astro'
+
+interface Props {
+	denied?: boolean
+}
+
+const { denied = false } = Astro.props
+---
+
+<section class="card w-full max-w-md bg-base-100 shadow-xl">
+	<div class="card-body gap-4">
+		<h1 class="card-title text-xl">Administrar usuarios</h1>
+
+		{denied ? (
+			<AlertError>
+				<span>Acceso denegado: esta sección está reservada a los administradores.</span>
+			</AlertError>
+		) : (
+			<p>
+				La gestión de usuarios (registrar, actualizar, eliminar y suspender cuentas) llegará en una
+				entrega posterior.
+			</p>
+		)}
+	</div>
+</section>
