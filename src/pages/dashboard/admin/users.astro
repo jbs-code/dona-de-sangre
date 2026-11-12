@@ -1,0 +1,30 @@
+---
+import BaseLayout from '../../../components/ui/BaseLayout.astro'
+import AppNavbar from '../../../components/ui/AppNavbar.astro'
+import AdminUsersPanel from '../../../features/users/components/AdminUsersPanel.astro'
+import { getCurrentUser } from '../../../lib/current-user'
+
+const claims = Astro.locals.claims
+
+if (!claims) {
+	return Astro.redirect('/auth/login?next=%2Fdashboard%2Fadmin%2Fusers')
+}
+
+const { data: usuario } = await getCurrentUser(Astro.locals.supabase, claims)
+
+const isAdmin = usuario?.rol === 'admin'
+
+if (!isAdmin) {
+	Astro.response.status = 403
+}
+---
+
+<BaseLayout title="Administrar usuarios | Dona de sangre">
+	<div class="flex min-h-svh flex-col">
+		<AppNavbar />
+
+		<main class="flex flex-1 flex-col items-center justify-start gap-4 p-4 sm:justify-center sm:p-6">
+			<AdminUsersPanel denied={!isAdmin} />
+		</main>
+	</div>
+</BaseLayout>
