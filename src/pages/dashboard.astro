@@ -4,7 +4,7 @@ import AlertError from '../components/ui/AlertError.astro'
 import AppNavbar from '../components/ui/AppNavbar.astro'
 import AdminUsersShortcutCard from '../features/dashboard/components/AdminUsersShortcutCard.astro'
 import { getCurrentUser } from '../lib/current-user'
-import type { Database } from '../lib/database.types'
+import { ROL_INFO } from '../lib/roles'
 
 const claims = Astro.locals.claims
 
@@ -13,14 +13,6 @@ if (!claims) {
 }
 
 const { data: usuario, error } = await getCurrentUser(Astro.locals.supabase, claims)
-
-type Rol = Database['public']['Enums']['rol_usuario']
-
-const ROL_INFO: Record<Rol, { label: string; className: string }> = {
-	admin: { label: 'Administrador', className: 'badge-neutral' },
-	supervisor: { label: 'Supervisor', className: 'badge-secondary' },
-	capturador: { label: 'Capturador', className: 'badge-ghost' }
-}
 
 const rolInfo = usuario ? ROL_INFO[usuario.rol] : null
 
