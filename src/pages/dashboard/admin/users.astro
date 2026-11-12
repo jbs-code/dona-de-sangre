@@ -2,6 +2,7 @@
 import BaseLayout from '../../../components/ui/BaseLayout.astro'
 import AppNavbar from '../../../components/ui/AppNavbar.astro'
 import AdminUsersPanel from '../../../features/users/components/AdminUsersPanel.astro'
+import { listUsers } from '../../../features/users/lib/users-list'
 import { getCurrentUser } from '../../../lib/current-user'
 
 const claims = Astro.locals.claims
@@ -17,6 +18,14 @@ const isAdmin = usuario?.rol === 'admin'
 if (!isAdmin) {
 	Astro.response.status = 403
 }
+
+// El listado solo se consulta si el solicitante es admin: con otro rol no se lee ninguna fila.
+const result = isAdmin
+	? await listUsers(Astro.locals.supabase, {
+			search: Astro.url.searchParams.get('q') ?? '',
+			page: Number(Astro.url.searchParams.get('page') ?? '1')
+		})
+	: undefined
 ---
 
 <BaseLayout title="Administrar usuarios | Dona de sangre">
@@ -24,7 +33,7 @@ if (!isAdmin) {
 		<AppNavbar />
 
 		<main class="flex flex-1 flex-col items-center justify-start gap-4 p-4 sm:justify-center sm:p-6">
-			<AdminUsersPanel denied={!isAdmin} />
+			<AdminUsersPanel denied={!isAdmin} result={result} />
 		</main>
 	</div>
 </BaseLayout>
