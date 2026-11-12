@@ -100,7 +100,7 @@ Manage it with `npx astro dev stop`, `npx astro dev status`, and `npx astro dev 
 - Never use a `service_role`/secret key in frontend code. Enable RLS on every table in an exposed schema and write policies per table, not a blanket `auth.uid()`. `public.usuarios` already has RLS and `select`-only grants for `authenticated`.
 - Session cookies are `httpOnly`, `sameSite=lax` and `secure` only in production; requests are authorized with `getClaims()`, not `getSession()`. Only routes under `/dashboard` are protected.
 - Types are generated with `generate_typescript_types` from the MCP and stored in `src/lib/database.types.ts`; the server client is `SupabaseClient<Database>`.
-- The Supabase MCP server is configured globally in `~/.config/opencode/opencode.jsonc` (project ref `swguryvbjzosovilywxf`), not in this repo's `opencode.jsonc`. Use it to inspect tables, migrations, logs, and advisors before changing the remote project.
+- The Supabase MCP server is configured globally in `~/.config/opencode/opencode.jsonc` (project ref `ugzbcrwykivvisbvpozo`, the same as `SUPABASE_URL` in `.env`), not in this repo's `opencode.jsonc`. Use it to inspect tables, migrations, logs, and advisors before changing the remote project.
 
 ## Security
 
@@ -126,8 +126,8 @@ Unchanged rules, restated here so they are never lost during refactors:
 - Never commit automatically, per step or at the end; only when the user explicitly asks. Only a human moves a spec to `Approved` and to `Implemented`. `/spec-impl` creates/switches to branch `spec-NN-slug` before implementing.
 - `spec-verifier` only verifies and edits files under `specs/**`; it must not change app code or the spec's status.
 - `specs/` holds `specs/01-login.md`, `specs/02-auth-supabase.md`, `specs/03-invitacion-confirmacion.md` and `specs/04-toggle-visibilidad-contrasena.md` (all `Implementado`), plus `specs/05-refactor-fdd-componentes.md`. New specs follow `specs/NN-slug.md`.
-- `spec-verifier`'s shell allowlist only matches bare `astro dev *`, which fails here (no global `astro`). Update it to `npx astro dev *` before relying on that agent.
+- `spec-verifier` uses `npx astro dev *`, `npm run build`, `npx tsc --noEmit` (never `astro check`), read-only git, read-only `curl`, Playwright, Context7, Astro Docs and the Supabase MCP. Its Supabase access is read-only: no migrations, branches, Edge Functions or DML/DDL. It must ask before mutating real state (invitations, real `POST`s).
 
 ## References
 
-- `opencode.jsonc` configures the `astro-docs` and `playwright` MCP servers, useful for Astro API questions and browser verification. The Supabase MCP server is configured globally instead (see Supabase above).
+- `opencode.jsonc` configures the `astro-docs` and `playwright` MCP servers, useful for Astro API questions and browser verification. The `supabase` and `context7` MCP servers are configured globally instead (see Supabase above).
