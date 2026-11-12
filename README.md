@@ -10,6 +10,7 @@ El acceso a la aplicación está protegido: solo las cuentas creadas por el labo
 
 - Inicio y cierre de sesión con Supabase Auth y sesión en cookies `httpOnly`.
 - Panel protegido (`/dashboard`) que muestra el perfil y el rol del usuario.
+- Acceso de administración (`/dashboard/admin/users`), visible solo para el rol `admin` y protegido con un 403 en el servidor.
 - Flujo de invitación: el administrador genera un enlace, la aplicación envía el correo, el invitado confirma su correo y define su propia contraseña.
 - Esquema de base de datos con tabla de perfiles, roles y políticas RLS por tabla.
 - Estructura del proyecto organizada por funcionalidad (`src/features/`) con componentes reutilizables.
@@ -18,7 +19,8 @@ El acceso a la aplicación está protegido: solo las cuentas creadas por el labo
 **Pendiente**
 
 - Formulario de captura de donadores (el objetivo principal del producto).
-- Panel de administración en la aplicación (la API de invitaciones ya existe, falta la interfaz).
+- Gestión de usuarios dentro del panel (listar, registrar, actualizar, eliminar y suspender): la ruta `/dashboard/admin/users` ya existe y está protegida por rol, pero su contenido es provisional.
+- Interfaz de las invitaciones (`POST /api/invitations` ya existe, falta la pantalla).
 - Recuperación de contraseña («¿Olvidaste tu contraseña?»).
 
 ## Stack tecnológico
@@ -198,18 +200,22 @@ src/
 ├── env.d.ts                               # tipos de astro:env y App.Locals
 ├── styles/global.css                      # Tailwind 4 + daisyUI y los temas dona / dona-dark
 ├── lib/                                   # infraestructura compartida entre features
+│   ├── current-user.ts                    # perfil del solicitante (nombre, correo, rol)
 │   ├── database.types.ts                  # tipos de Supabase generados desde el MCP
 │   └── supabase.ts                        # cliente de servidor (@supabase/ssr) con cookies
 ├── components/
 │   └── ui/                                # componentes usados por varias features
 │       ├── BaseLayout.astro               # <head>, <body>, importa global.css
-│       └── AlertError.astro               # aviso de error accesible
+│       ├── AlertError.astro               # aviso de error accesible
+│       └── AppNavbar.astro                # navbar del panel y «Cerrar sesión»
 ├── features/
 │   ├── auth/components/                   # AuthCard, FormField, PasswordInput
-│   ├── dashboard/components/              # AppNavbar
+│   ├── dashboard/components/              # AdminUsersShortcutCard
+│   ├── users/components/                  # AdminUsersPanel
 │   └── invitations/lib/                   # email.ts (nodemailer) y supabase-admin.ts
 └── pages/
     ├── dashboard.astro                    # panel protegido
+    ├── dashboard/admin/users.astro        # administración de usuarios (solo admin)
     ├── auth/{login,confirm,update-password}.astro
     └── api/
         ├── invitations.ts
@@ -232,7 +238,8 @@ Reglas de organización:
 | `/auth/login` | Formulario de inicio de sesión. |
 | `/auth/confirm` | Verifica el token de invitación, crea la sesión y redirige a la elección de contraseña. |
 | `/auth/update-password` | `GET`: formulario de contraseña nueva. `POST`: valida y guarda la contraseña. |
-| `/dashboard` | Panel protegido: muestra el perfil y el rol del usuario. |
+| `/dashboard` | Panel protegido: muestra el perfil y el rol del usuario. Solo el `admin` ve además la tarjeta «Administrar usuarios». |
+| `/dashboard/admin/users` | Administración de usuarios, solo para `admin`: responde 403 si la sesión no es de un administrador. |
 
 **API**
 
@@ -258,11 +265,11 @@ La tabla `public.usuarios` guarda el perfil de cada cuenta (nunca contraseñas) 
 
 | Rol | Permisos actuales |
 | --- | ----------------- |
-| `admin` | Acceso al panel e invitaciones (`POST /api/invitations`). |
+| `admin` | Acceso al panel, al área de administración de usuarios (`/dashboard/admin/users`) e invitaciones (`POST /api/invitations`). |
 | `supervisor` | Acceso al panel; por RLS puede leer los perfiles del equipo. |
 | `capturador` | Acceso al panel y a su propio perfil. |
 
-El único punto que hoy distingue roles es el endpoint de invitaciones. El resto de la interfaz está en desarrollo.
+Los roles se distinguen en la interfaz en el área de administración de usuarios (visible solo para `admin` y con un 403 en el servidor para el resto) y en el endpoint de invitaciones. El resto de la interfaz está en desarrollo.
 
 ## Despliegue en Netlify
 

@@ -6,7 +6,8 @@
 - App must be responsive: it has to read clearly on smartphones and PCs (verified at 320 px, no horizontal scroll).
 - Astro 7 SSR site (`output: 'server'`) with the `@astrojs/netlify` adapter, Tailwind CSS 4 (Vite plugin) and daisyUI 5. No UI framework integration (React/Vue/Svelte).
 - Supabase Auth is wired through `@supabase/ssr` with server-side cookies: `src/lib/supabase.ts`, `src/middleware.ts` (session refresh and `/dashboard` protection), `POST /api/auth/login` and `POST /api/auth/logout`. `public.usuarios` stores the profile and role (`admin` / `supervisor` / `capturador`) with RLS; it never stores passwords.
-- Pages: `src/pages/auth/login.astro`, protected `src/pages/dashboard.astro`, `src/pages/auth/confirm.astro` (verifies the invite token), `src/pages/auth/update-password.astro` (GET form + POST handler) and API routes `src/pages/api/{auth/login,auth/logout,invitations}.ts`; `/` redirects to `/auth/login` through `redirects` in `astro.config.mjs`. Only stylesheet: `src/styles/global.css`.
+- Pages: `src/pages/auth/login.astro`, protected `src/pages/dashboard.astro`, role-protected `src/pages/dashboard/admin/users.astro` (403 unless the session is an `admin`), `src/pages/auth/confirm.astro` (verifies the invite token), `src/pages/auth/update-password.astro` (GET form + POST handler) and API routes `src/pages/api/{auth/login,auth/logout,invitations}.ts`; `/` redirects to `/auth/login` through `redirects` in `astro.config.mjs`. Only stylesheet: `src/styles/global.css`.
+- Role checks live in page frontmatter, not in `src/middleware.ts`: the middleware only protects `/dashboard/*` by session. `src/lib/current-user.ts` (`getCurrentUser`) is the single reader of the requester's row in `public.usuarios`.
 
 ## Structure
 
@@ -16,12 +17,14 @@ src/
 ├── env.d.ts                               # astro:env types
 ├── styles/global.css                      # Tailwind 4 + daisyUI setup (only stylesheet)
 ├── lib/                                   # multi-feature infra
+│   ├── current-user.ts                    # requester's profile (nombre, email, rol) + getCurrentUser()
 │   ├── database.types.ts                  # Supabase types generated from the MCP
 │   └── supabase.ts                        # @supabase/ssr server client factory
 ├── components/
 │   └── ui/                                # components used across features
 │       ├── BaseLayout.astro               # <head>, <body class="bg-base-200">, imports global.css
-│       └── AlertError.astro               # role="alert" + alert alert-error (+ alert-soft)
+│       ├── AlertError.astro               # role="alert" + alert alert-error (+ alert-soft)
+│       └── AppNavbar.astro                # navbar + «Cerrar sesión» logout form
 ├── features/
 │   ├── auth/
 │   │   └── components/
@@ -30,13 +33,17 @@ src/
 │   │       └── PasswordInput.astro        # div.input + password field + toggle + its script
 │   ├── dashboard/
 │   │   └── components/
-│   │       └── AppNavbar.astro            # navbar + «Cerrar sesión» logout form
+│   │       └── AdminUsersShortcutCard.astro # admin-only card linking to /dashboard/admin/users
+│   ├── users/
+│   │   └── components/
+│   │       └── AdminUsersPanel.astro     # prop denied?: access-denied alert or pending text
 │   └── invitations/
 │       └── lib/
 │           ├── email.ts                   # nodemailer SMTP sender
 │           └── supabase-admin.ts          # admin client using SUPABASE_SECRET_API_KEY
 └── pages/
-    ├── dashboard.astro
+    ├── dashboard.astro                    # profile card (+ admin shortcut card)
+    ├── dashboard/admin/users.astro        # role guard: Astro.response.status = 403 if not admin
     ├── auth/{login,confirm,update-password}.astro
     └── api/
         ├── invitations.ts
@@ -68,9 +75,9 @@ Rules:
 ## Commands
 
 - `npm run dev` / `npm run build` / `npm run preview`.
-- There are no test, lint, or typecheck scripts. `npm run build` is the main verification step; `npx tsc --noEmit` works too because TypeScript is installed transitively.
+- There are no test or lint scripts. `npm run build` is the main verification step; `npm run check` (`astro check`) type-checks the `.astro` frontmatter and `npx tsc --noEmit` covers `src/**/*.ts`.
+- `npx tsc --noEmit` does **not** check `.astro` files: it only covers `src/**/*.ts`. Frontmatter errors in pages and components need `npm run check` (`@astrojs/check` + `typescript` are declared devDependencies).
 - `astro` is not on PATH here: bare `astro ...` fails, so always use `npx astro ...`.
-- `astro check` is not installed either; running it prompts to install `@astrojs/check` and `typescript`.
 - The build prints `Invalid empty selector` warnings from daisyUI CSS; they are non-fatal (verified on Astro 7.4.7 / daisyUI 5.7.50).
 - No Supabase CLI is installed or declared and there is no `supabase/config.toml`; database work goes through the Supabase MCP server or the dashboard, and applied SQL is versioned in `supabase/migrations/`. If the CLI is added, invoke it as `npx supabase` and commit `supabase/`.
 
@@ -98,7 +105,7 @@ Manage it with `npx astro dev stop`, `npx astro dev status`, and `npx astro dev 
 - Env vars live in `.env` (gitignored) and `.env.template` (tracked): `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_DB_PASSWORD`, plus `SUPABASE_SECRET_API_KEY` and `SMTP_*` (see the Email section below). `.env` is populated locally; never commit it or copy real values into `.env.template`.
 - `SUPABASE_URL` and `SUPABASE_KEY` are server-only: declared in `astro:env` as `context: 'server'`, `access: 'secret'` and read only by `src/lib/supabase.ts`. Never rename them to `PUBLIC_*` or expose them to client code. `SUPABASE_DB_PASSWORD` is CLI/MCP-only and must never reach the client.
 - Never use a `service_role`/secret key in frontend code. Enable RLS on every table in an exposed schema and write policies per table, not a blanket `auth.uid()`. `public.usuarios` already has RLS and `select`-only grants for `authenticated`.
-- Session cookies are `httpOnly`, `sameSite=lax` and `secure` only in production; requests are authorized with `getClaims()`, not `getSession()`. Only routes under `/dashboard` are protected.
+- Session cookies are `httpOnly`, `sameSite=lax` and `secure` only in production; requests are authorized with `getClaims()`, not `getSession()`. The middleware protects `/dashboard/*` by session only; role authorization is checked in page frontmatter.
 - Types are generated with `generate_typescript_types` from the MCP and stored in `src/lib/database.types.ts`; the server client is `SupabaseClient<Database>`.
 - The Supabase MCP server is configured globally in `~/.config/opencode/opencode.jsonc` (project ref `ugzbcrwykivvisbvpozo`, the same as `SUPABASE_URL` in `.env`), not in this repo's `opencode.jsonc`. Use it to inspect tables, migrations, logs, and advisors before changing the remote project.
 
@@ -125,7 +132,7 @@ Unchanged rules, restated here so they are never lost during refactors:
 - `/spec-impl` executes the implementation plan **one numbered step at a time**: implement exactly one step, summarize the files touched and show the diff, then **stop and wait for human review**. Never chain several steps in one go; continue only after the user explicitly confirms (`yes`, `go`, equivalent). If there are no steps left, say so and stop.
 - Never commit automatically, per step or at the end; only when the user explicitly asks. Only a human moves a spec to `Approved` and to `Implemented`. `/spec-impl` creates/switches to branch `spec-NN-slug` before implementing.
 - `spec-verifier` only verifies and edits files under `specs/**`; it must not change app code or the spec's status.
-- `specs/` holds `specs/01-login.md`, `specs/02-auth-supabase.md`, `specs/03-invitacion-confirmacion.md` and `specs/04-toggle-visibilidad-contrasena.md` (all `Implementado`), plus `specs/05-refactor-fdd-componentes.md`. New specs follow `specs/NN-slug.md`.
+- `specs/` holds `specs/01-login.md`, `specs/02-auth-supabase.md`, `specs/03-invitacion-confirmacion.md` and `specs/04-toggle-visibilidad-contrasena.md` (all `Implementado`), plus `specs/05-refactor-fdd-componentes.md` and `specs/06-admin-usuarios.md`. New specs follow `specs/NN-slug.md`.
 - `spec-verifier` uses `npx astro dev *`, `npm run build`, `npx tsc --noEmit` (never `astro check`), read-only git, read-only `curl`, Playwright, Context7, Astro Docs and the Supabase MCP. Its Supabase access is read-only: no migrations, branches, Edge Functions or DML/DDL. It must ask before mutating real state (invitations, real `POST`s).
 
 ## References
