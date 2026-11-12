@@ -1,6 +1,6 @@
 # SPEC 07 — Listado de usuarios con búsqueda y paginación
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 02, SPEC 05, SPEC 06
 > **Fecha:** 2026-11-12
 > **Objetivo:** Reemplazar el texto genérico de `/dashboard/admin/users` por el listado real de los usuarios registrados, con búsqueda por nombre o correo y paginación de 10 por página, y mover `src/pages/dashboard.astro` dentro de `src/pages/dashboard/`.
@@ -197,30 +197,30 @@ src/pages/
 
 ## Criterios de aceptación
 
-- [ ] `npm run build` termina correctamente (solo los avisos no fatales `Invalid empty selector` de daisyUI).
-- [ ] `npx tsc --noEmit` no reporta errores.
-- [ ] `npm run check` (`astro check`) no reporta errores en los `.astro`.
-- [ ] `/dashboard` sigue respondiendo 200 y su tarjeta de perfil (nombre, correo, rol) no cambia de contenido.
-- [ ] La ruta `/dashboard` se sirve desde `src/pages/dashboard/index.astro` y el archivo `src/pages/dashboard.astro` ya no existe.
-- [ ] `/dashboard/admin/users` con sesión de `admin` responde 200 y muestra una tabla con los usuarios registrados: nombre, correo y rol (con badge y etiqueta legible), no el texto genérico de SPEC 06.
-- [ ] El listado muestra los usuarios que el solicitante puede ver por RLS, no la tabla entera.
-- [ ] La tabla no contiene ningún botón ni enlace de acción sobre un usuario (registrar, editar, eliminar, suspender).
-- [ ] Un término de búsqueda que coincide con un nombre o un correo encuentra ese usuario.
-- [ ] La búsqueda no distingue mayúsculas de minúsculas.
-- [ ] Un término de búsqueda que no coincide con nadie muestra el estado vacío y no un error.
-- [ ] Un término con `,` o `;` no provoca un error 500 ni un bloqueo: la página responde 200.
-- [ ] La búsqueda se hace en el servidor, con JavaScript desactivado.
-- [ ] La paginación muestra como máximo 10 usuarios por página.
-- [ ] Con más de 10 usuarios, la paginación muestra varias páginas y se puede navegar entre ellas; cada página muestra usuarios distintos.
-- [ ] La paginación conserva el término de búsqueda al cambiar de página.
-- [ ] Un número de página fuera de rango se recorta a la última página válida y no provoca error.
-- [ ] El texto de «Buscar por nombre o correo» y el valor del campo coinciden con lo que realmente se busca.
-- [ ] Con sesión de un usuario que no es `admin`, `GET /dashboard/admin/users` responde 403 y no contiene filas de usuarios.
-- [ ] Sin sesión, `GET /dashboard/admin/users` responde 302 a `/auth/login?next=%2Fdashboard%2Fadmin%2Fusers`.
-- [ ] La página no escribe en la base de datos ni envía correos.
-- [ ] A 320 px no hay scroll horizontal en `/dashboard` ni en `/dashboard/admin/users`.
-- [ ] No hay errores de consola en `/dashboard` ni en `/dashboard/admin/users`.
-- [ ] `README.md` y `AGENTS.md` reflejan el árbol final de `src/` y la nueva funcionalidad.
+- [x] `npm run build` termina correctamente (solo los avisos no fatales `Invalid empty selector` de daisyUI).
+- [x] `npx tsc --noEmit` no reporta errores.
+- [x] `npm run check` (`astro check`) no reporta errores en los `.astro`.
+- [x] `/dashboard` sigue respondiendo 200 y su tarjeta de perfil (nombre, correo, rol) no cambia de contenido.
+- [x] La ruta `/dashboard` se sirve desde `src/pages/dashboard/index.astro` y el archivo `src/pages/dashboard.astro` ya no existe.
+- [x] `/dashboard/admin/users` con sesión de `admin` responde 200 y muestra una tabla con los usuarios registrados: nombre, correo y rol (con badge y etiqueta legible), no el texto genérico de SPEC 06.
+- [x] El listado muestra los usuarios que el solicitante puede ver por RLS, no la tabla entera.
+- [x] La tabla no contiene ningún botón ni enlace de acción sobre un usuario (registrar, editar, eliminar, suspender).
+- [x] Un término de búsqueda que coincide con un nombre o un correo encuentra ese usuario.
+- [x] La búsqueda no distingue mayúsculas de minúsculas.
+- [x] Un término de búsqueda que no coincide con nadie muestra el estado vacío y no un error.
+- [x] Un término con `,` o `;` no provoca un error 500 ni un bloqueo: la página responde 200.
+- [x] La búsqueda se hace en el servidor, con JavaScript desactivado.
+- [x] La paginación muestra como máximo 10 usuarios por página.
+- [x] Con más de 10 usuarios, la paginación muestra varias páginas y se puede navegar entre ellas; cada página muestra usuarios distintos.
+- [x] La paginación conserva el término de búsqueda al cambiar de página.
+- [x] Un número de página fuera de rango se recorta a la última página válida y no provoca error.
+- [x] El texto de «Buscar por nombre o correo» y el valor del campo coinciden con lo que realmente se busca.
+- [x] Con sesión de un usuario que no es `admin`, `GET /dashboard/admin/users` responde 403 y no contiene filas de usuarios.
+- [x] Sin sesión, `GET /dashboard/admin/users` responde 302 a `/auth/login?next=%2Fdashboard%2Fadmin%2Fusers`.
+- [x] La página no escribe en la base de datos ni envía correos.
+- [x] A 320 px no hay scroll horizontal en `/dashboard` ni en `/dashboard/admin/users`.
+- [x] No hay errores de consola en `/dashboard` ni en `/dashboard/admin/users`.
+- [x] `README.md` y `AGENTS.md` reflejan el árbol final de `src/` y la nueva funcionalidad.
 
 ## Decisiones tomadas y descartadas
 
@@ -273,28 +273,44 @@ src/pages/
 
 ## Verificación
 
-> **Pendiente de ejecutar tras la implementación.**
+> **Ejecutada tras la implementación (2026-11-12).** Sesión de `admin` y de `capturador` obtenidas con `auth.admin.generateLink` + `verifyOtp` (no envía correo ni crea usuarios).
 
 | Criterio | Estado | Evidencia | Notas |
 | --- | --- | --- | --- |
-| `npm run build` termina correctamente | ⬜ | — | Solo los avisos no fatales de daisyUI |
-| `npx tsc --noEmit` no reporta errores | ⬜ | — | — |
-| `npm run check` no reporta errores | ⬜ | — | — |
-| `/dashboard` conserva su tarjeta de perfil | ⬜ | — | Comparar el HTML servido antes y después |
-| El archivo se movió a `dashboard/index.astro` | ⬜ | — | `git status` y `npm run build` |
-| La tabla lista los usuarios con nombre, correo y rol | ⬜ | — | HTML servido con sesión de `admin` |
-| No hay texto genérico ni botones de acción | ⬜ | — | — |
-| La búsqueda encuentra por nombre y por correo | ⬜ | — | `?q=jaime` y `?q=jaime@google.com` |
-| La búsqueda no distingue mayúsculas | ⬜ | — | `?q=JAIME` |
-| Un término con `,` o `;` no rompe la página | ⬜ | — | Debe responder 200 |
-| La búsqueda funciona sin JavaScript | ⬜ | — | Playwright con JS desactivado |
-| La paginación muestra 10 usuarios por página | ⬜ | — | Con más de 10 usuarios en la base |
-| La paginación navega y conserva la búsqueda | ⬜ | — | — |
-| Una página fuera de rango se recorta | ⬜ | — | `?page=99` |
-| El texto del campo coincide con lo que se busca | ⬜ | — | — |
-| Un no-`admin` recibe 403 y no ve filas | ⬜ | — | `curl -i` |
-| Sin sesión, 302 al login | ⬜ | — | `curl -i` |
-| La página no escribe ni envía correos | ⬜ | — | Revisar el código y los logs de Supabase |
-| Sin scroll horizontal a 320 px | ⬜ | — | Playwright a 320×720 |
-| Sin errores de consola | ⬜ | — | Playwright en las dos pantallas |
-| `README.md` y `AGENTS.md` al día | ⬜ | — | Diff de los dos archivos |
+| `npm run build` termina correctamente | ✅ | `npm run build` → `Complete!` | Solo los avisos no fatales `Invalid empty selector` de daisyUI |
+| `npx tsc --noEmit` no reporta errores | ✅ | Sin salida, código 0 | — |
+| `npm run check` no reporta errores | ✅ | `Result (30 files): 0 errors, 0 warnings, 0 hints` | — |
+| `/dashboard` conserva su tarjeta de perfil | ✅ | HTML servido: `jaime` / `jaime@google.com` / badge `Administrador` | El commit del movimiento solo cambia las rutas de los imports (`git show 83ab986`) |
+| El archivo se movió a `dashboard/index.astro` | ✅ | `git show 83ab986`: `rename from src/pages/dashboard.astro`; `src/pages/dashboard.astro` no existe | — |
+| La tabla lista los usuarios con nombre, correo y rol | ✅ | HTML con sesión de `admin`: 3 filas (`charly`, `jaime`, `luis`) | — |
+| No hay texto genérico ni botones de acción | ✅ | 0 coincidencias de «entrega posterior»; los únicos botones son «Cerrar sesión» y «Buscar» | La tabla no tiene ni un enlace ni un botón por usuario |
+| La búsqueda encuentra por nombre y por correo | ✅ | `?q=jaime` → 1 fila; `?q=jaime@google.com` → 1 fila; `?q=charly` → 1 fila | — |
+| La búsqueda no distingue mayúsculas | ✅ | `?q=JAIME` → 1 fila (igual que `?q=jaime`) | — |
+| Un término con `,` o `;` no rompe la página | ✅ | `?q=a,b`, `?q=x; delete from usuarios` y `?q='; drop table usuarios; --` → 200, 0 filas | El campo muestra el término saneado: `a b`, `x delete from usuarios`, `drop table usuarios --` |
+| La búsqueda funciona sin JavaScript | ✅ | Contexto de Playwright con `javaScriptEnabled: false`: 200, 3 filas; al enviar el formulario → `?q=luis` con 1 fila | El formulario es `GET` a `/dashboard/admin/users` con un único campo `q` |
+| La paginación muestra 10 usuarios por página | ✅ | Con 23 usuarios en la base: «Mostrando 1–10 de 23 usuarios» en la página 1 y «11–20» en la 2 | 20 filas temporales creadas y borradas después |
+| La paginación navega y conserva la búsqueda | ✅ | Playwright: «Siguiente» → `?page=2` con 10 usuarios distintos; «3» → `?page=3` con 3 distintos (sin solapamiento) | Con búsqueda: `?q=test` → `?q=test&page=2`, y los enlaces de la paginación conservan `q=test` |
+| Una página fuera de rango se recorta | ✅ | `?page=4` y `?page=99` → 200 con la última página válida (la 3 de 3) | `page=0`, `page=-5`, `page=abc` y `page=1.5` también se recortan a la 1 |
+| El texto del campo coincide con lo que se busca | ✅ | `?q=a,b` → el campo muestra `a b` y la búsqueda real es `a b` | El campo refleja siempre el valor saneado |
+| Un no-`admin` recibe 403 y no ve filas | ✅ | `curl` con sesión de `capturador` → 403 y 0 `<td>` en el HTML | El aviso «Acceso denegado…» se mantiene de SPEC 06 |
+| Sin sesión, 302 al login | ✅ | `curl` sin cookie → 302 a `/auth/login?next=%2Fdashboard%2Fadmin%2Fusers` | — |
+| La página no escribe ni envía correos | ✅ | Logs de Supabase de la ventana de verificación: sobre `/rest/v1/usuarios` solo `GET 200` y `HEAD 200`; ningún `POST`/`PATCH`/`DELETE` | El código solo llama a `listUsers()`; no hay `insert`/`update`/`delete` ni envío de correos |
+| Sin scroll horizontal a 320 px | ✅ | Playwright a 320×720: `scrollWidth === clientWidth` en `/dashboard` y en `/dashboard/admin/users` | También comprobado a 375 y 768 px |
+| Sin errores de consola | ✅ | `consoleErrors: []` en `/dashboard` y en `/dashboard/admin/users` | — |
+| `README.md` y `AGENTS.md` al día | ✅ | Commit `a954367`: los dos archivos con el árbol final de `src/` y la nueva funcionalidad | — |
+
+### Comprobaciones adicionales
+
+| Comprobación | Estado | Evidencia |
+| --- | --- | --- |
+| RLS filtra por rol, no por código | ✅ | Con el JWT real: `admin` → 3 filas, `supervisor` → 3 filas, `capturador` → 1 fila (solo la propia) |
+| La consulta no se ejecuta con un rol no `admin` | ✅ | El frontmatter solo llama a `listUsers()` si `isAdmin`; con `capturador` no hay ninguna petición a `/rest/v1/usuarios` en los logs |
+| El sanitado del término | ✅ | `sanitizeSearchTerm`: `a,b` → `a b`; `x; delete` → `x delete`; `j_a` → `j\_a`; `%` y `*` → vacío (sin comodín); `José` → `José`; recorte a 100 caracteres |
+| El recorte del rango | ✅ | `listUsers` con 25 filas simuladas: página 2 → rango `10–19`, página 99 → rango `20–29` (recortada), total 0 → rango `0–9` |
+| El total de `count` respeta RLS | ✅ | La página de `admin` muestra «de 3 usuarios», no el total de la tabla |
+| El orden es estable | ✅ | `order('nombre').order('email')`, ambas ascendentes |
+
+### Observaciones (no bloquean la verificación)
+
+1. **El recorte a 100 caracteres puede dejar una barra invertida suelta.** `sanitizeSearchTerm` escapa `_` como `\_` *antes* de recortar a 100 caracteres (el orden que fija este spec), así que un término de 100 caracteres que acabe en `_` se corta entre la barra y el guion bajo: el resultado es un término que termina en `\` y el filtro queda `ilike.*…\*`, donde `\*` busca un asterisco literal. Verificado contra la base real: `?q=` + 99 letras + `_` → 200, 0 filas, y el campo muestra el término con la barra al final. No es un error ni un problema de seguridad (la barra solo puede venir del propio escapado), pero el término buscado ya no es el que el usuario escribió. Se arreglaría recortando antes de escapar, o quitando una barra invertida final tras el recorte.
+2. **A 320 px la columna «Rol» queda fuera de la vista sin desplazamiento.** La tabla vive en un contenedor `overflow-x-auto` y la página no desborda (`scrollWidth === clientWidth`), que es lo que pide el criterio. Con el `break-all` de la columna de correo, cada fila ocupa además cinco líneas y hay que desplazar el contenedor para ver el rol. Es consecuencia de las decisiones fijadas en este spec (`overflow-x-auto` + `break-all`), no de un fallo de la implementación.
