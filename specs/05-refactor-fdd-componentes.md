@@ -1,6 +1,6 @@
 # SPEC 05 — Refactorización FDD, componentes reutilizables y AGENTS.md
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 01, SPEC 02, SPEC 03, SPEC 04
 > **Fecha:** 2026-11-11
 > **Objetivo:** Reorganizar `src/` por funcionalidad con carpetas `features/`, extraer los componentes de Astro que se repiten y reescribir `AGENTS.md` para las integraciones futuras, sin cambiar el comportamiento observable del sitio.
@@ -115,22 +115,22 @@ src/
 
 ## Criterios de aceptación
 
-- [ ] `npm run build` termina correctamente.
-- [ ] `npx tsc --noEmit` no reporta errores.
-- [ ] `src/lib/email.ts` y `src/lib/supabase-admin.ts` ya no existen y ningún archivo los importa desde `src/lib/`.
-- [ ] Las cuatro páginas importan `BaseLayout` y ninguna declara su propio `<head>` ni su propio `<body>`.
-- [ ] El HTML servido de `/auth/login`, `/auth/confirm`, `/auth/update-password` y `/dashboard` es idéntico al de la rama base, salvo las rutas con hash de `/_astro/*` y el número y orden de las etiquetas `<script>` y `<link rel="stylesheet">`.
-- [ ] El formulario de login conserva `method="post"`, `action="/api/auth/login"` y los campos `email` y `password` con sus `id`, `name`, `required` y `autocomplete` originales.
-- [ ] El toggle de contraseña cambia `type` entre `password` y `text`, conserva el valor, alterna `aria-label` entre «Mostrar contraseña» y «Ocultar contraseña» y no envía el formulario.
-- [ ] Sin JavaScript, la contraseña permanece oculta y el botón del toggle sigue oculto.
-- [ ] `/auth/update-password` conserva `minlength="8"` y `autocomplete="new-password"` en ambos campos y su envío a `/auth/update-password`.
-- [ ] `/dashboard` conserva el navbar con «Cerrar sesión» enviando a `POST /api/auth/logout`.
-- [ ] Los tres mensajes de error mantienen `role="alert"`, con `alert alert-error alert-soft` en login y update-password y `alert alert-error` en dashboard.
+- [x] `npm run build` termina correctamente.
+- [x] `npx tsc --noEmit` no reporta errores.
+- [x] `src/lib/email.ts` y `src/lib/supabase-admin.ts` ya no existen y ningún archivo los importa desde `src/lib/`.
+- [x] Las cuatro páginas importan `BaseLayout` y ninguna declara su propio `<head>` ni su propio `<body>`.
+- [x] El HTML servido de `/auth/login`, `/auth/confirm`, `/auth/update-password` y `/dashboard` es idéntico al de la rama base, salvo las rutas con hash de `/_astro/*` y el número y orden de las etiquetas `<script>` y `<link rel="stylesheet">`.
+- [x] El formulario de login conserva `method="post"`, `action="/api/auth/login"` y los campos `email` y `password` con sus `id`, `name`, `required` y `autocomplete` originales.
+- [x] El toggle de contraseña cambia `type` entre `password` y `text`, conserva el valor, alterna `aria-label` entre «Mostrar contraseña» y «Ocultar contraseña» y no envía el formulario.
+- [x] Sin JavaScript, la contraseña permanece oculta y el botón del toggle sigue oculto.
+- [x] `/auth/update-password` conserva `minlength="8"` y `autocomplete="new-password"` en ambos campos y su envío a `/auth/update-password`.
+- [x] `/dashboard` conserva el navbar con «Cerrar sesión» enviando a `POST /api/auth/logout`.
+- [x] Los tres mensajes de error mantienen `role="alert"`, con `alert alert-error alert-soft` en login y update-password y `alert alert-error` en dashboard.
 - [ ] `POST /api/invitations` sigue respondiendo 401 sin sesión, 403 con rol `capturador` y 200 con rol `admin`.
-- [ ] A 320 px no hay scroll horizontal en las cuatro pantallas.
-- [ ] No hay errores de consola durante el recorrido de las cuatro pantallas.
-- [ ] `AGENTS.md` describe la estructura final, las dos recetas y las reglas de integración, y no contiene ninguna ruta que ya no exista.
-- [ ] `specs/01-login.md`, `specs/02-auth-supabase.md`, `specs/03-invitacion-confirmacion.md` y `specs/04-toggle-visibilidad-contrasena.md` no contienen cambios.
+- [x] A 320 px no hay scroll horizontal en las cuatro pantallas.
+- [x] No hay errores de consola durante el recorrido de las cuatro pantallas.
+- [x] `AGENTS.md` describe la estructura final, las dos recetas y las reglas de integración, y no contiene ninguna ruta que ya no exista.
+- [x] `specs/01-login.md`, `specs/02-auth-supabase.md`, `specs/03-invitacion-confirmacion.md` y `specs/04-toggle-visibilidad-contrasena.md` no contienen cambios.
 
 ## Decisiones tomadas y descartadas
 
@@ -173,3 +173,35 @@ src/
 - Cambios en Supabase, RLS, migraciones o variables de entorno.
 
 Cada uno de esos puntos, si llega, va en su propio spec.
+
+## Verificación
+
+> **Fecha:** 2026-11-11
+> **Resultado:** 15/16 criterios verificados (1 pendiente por falta de autorización para crear datos reales)
+
+Método: se compiló la rama del spec y la rama base `main` (`191a4c1`, merge-base) y se sirvieron ambas con el mismo
+handler SSR de `@astrojs/netlify` (`createHandler`), para comparar el HTML servido. Las páginas protegidas se
+renderizaron con una sesión efímera creada con `auth.admin.generateLink` (magiclink) validada por el propio
+`/auth/confirm` de la app; no se creó ni modificó ningún usuario, perfil, invitación ni correo.
+
+| Criterio | Estado | Evidencia | Notas |
+| --- | --- | --- | --- |
+| `npm run build` termina correctamente | ✅ | `npm run build` → `[build] Complete!`; solo los 2 avisos no fatales `Invalid empty selector` de daisyUI | Sin errores |
+| `npx tsc --noEmit` no reporta errores | ✅ | `npx tsc --noEmit` → exit 0, sin salida | — |
+| `src/lib/email.ts` y `src/lib/supabase-admin.ts` ya no existen y nadie los importa desde `src/lib/` | ✅ | `git diff main` → `R100 src/lib/email.ts → src/features/invitations/lib/email.ts`, `R090 src/lib/supabase-admin.ts → src/features/invitations/lib/supabase-admin.ts`; `grep "lib/(email\|supabase-admin)" src/` → solo `src/pages/api/invitations.ts:2-3` (importa de `features/invitations/lib/`) | — |
+| Las cuatro páginas importan `BaseLayout` y ninguna declara su propio `<head>` ni su propio `<body>` | ✅ | `grep -rn "BaseLayout" src/pages/` → 4 páginas; `grep -rn "<head>\|<body" src/pages/` → sin resultados; HTML servido: 1 `<html>`, 1 `<head>`, 1 `<body>` por página y `<title>` correcto en las cuatro | — |
+| HTML servido idéntico al de la rama base (salvo assets y etiquetas `<script>`/`<link>`) | ✅ | Diff normalizado (`/_astro/…` → `_astro/ASSET`) de las 4 rutas: `/auth/confirm`, `/dashboard` y `/auth/update-password` (con y sin `?error=corta`) **idénticos byte a byte**; `/auth/login` idéntico salvo que el `<script>` único de la base pasa a **dos** `<script>` (toggle de SPEC 04 + envío), lo que el criterio permite | El CSS generado añade una regla `.isolate{isolation:isolate}` sin uso: Tailwind la detecta por la palabra «isolate» del nuevo `AGENTS.md`; ningún elemento usa esa clase, el render no cambia |
+| El formulario de login conserva `method`, `action`, y los campos `email` y `password` | ✅ | Playwright: `#login-form` → `method="post"`, `action="/api/auth/login"`; `<input id="email" name="email" type="email" class="input w-full" required autocomplete="email">`; `<input id="password" name="password" type="password" class="grow" required autocomplete="current-password">` | Idéntico al HTML servido de la base |
+| El toggle cambia `type`, conserva el valor, alterna `aria-label` y no envía el formulario | ✅ | Playwright (puntero): `password`→`text`, valor `ClaveSecreta123` intacto, `aria-label` «Mostrar contraseña»→«Ocultar contraseña», iconos intercambiados, URL sin cambios y `#login-submit` sin deshabilitar; teclado (Enter y Space) idéntico | — |
+| Sin JavaScript la contraseña sigue oculta y el botón del toggle también | ✅ | HTML servido: `<input id="password" … type="password" …>` y `<button id="password-toggle" … class="btn btn-ghost btn-square btn-sm hidden">`; la clase `hidden` solo la quita el `<script>` de `PasswordInput.astro`; el bundle CSS incluye `.hidden{display:none}` | Igual que en la base |
+| `/auth/update-password` conserva `minlength="8"`, `autocomplete="new-password"` y el envío a `/auth/update-password` | ✅ | Playwright: `#password` y `#password_confirm` → `type="password"`, `required`, `minlength="8"`, `autocomplete="new-password"`, `class="input w-full"`; `#password-form` → `method="post"`, `action="/auth/update-password"`; sin toggle (fuera de alcance) | — |
+| `/dashboard` conserva el navbar con «Cerrar sesión» → `POST /api/auth/logout` | ✅ | Playwright: `header.navbar` = `navbar bg-base-100 px-4 shadow-sm`, marca «Dona de sangre», `form[method=post][action="/api/auth/logout]` con botón «Cerrar sesión»; clic → `POST /api/auth/logout` → 302 a `/auth/login` (HTML de login tras el clic) | — |
+| Los tres mensajes de error mantienen `role="alert"` y sus clases | ✅ | Login (`?error=invalid_credentials`): `role="alert"`, `alert alert-error alert-soft`; update-password (`?error=corta`): `role="alert"`, `alert alert-error alert-soft`; dashboard: `AlertError` sin `soft` → `role="alert"`, `alert alert-error` (render del componente verificado en una copia temporal fuera del repo; el markup de la base era idéntico) | — |
+| `POST /api/invitations` responde 401 sin sesión, 403 con rol `capturador` y 200 con rol `admin` | ⚠️ | 401 verificado: `POST /api/invitations` sin cookie → `401 {"error":"No autorizado."}` (igual que la base). **403 y 200 no ejecutados**: no se autorizó crear un usuario `capturador` ni ejecutar el POST real como admin (crea un invitado y envía un email por Gmail SMTP) | Código de la guarda sin cambios respecto a la base: `src/pages/api/invitations.ts:36-38` (`usuario?.rol !== 'admin'` → 403). Pendiente de autorización para datos reales |
+| A 320 px no hay scroll horizontal en las cuatro pantallas | ✅ | Playwright a 320×720: `scrollWidth === clientWidth === 320` en `/auth/login`, `/auth/confirm`, `/auth/update-password` y `/dashboard` | — |
+| No hay errores de consola durante el recorrido de las cuatro pantallas | ✅ | `browser_console_messages` → 0 errores y 0 warnings en las cuatro pantallas; solo un mensaje VERBOSE de Chrome («Password forms should have (optionally hidden) username fields») que también aparece en la rama base | Preexistente, no introducido por el refactor |
+| `AGENTS.md` describe estructura, recetas y reglas, sin rutas obsoletas | ✅ | Árbol de `AGENTS.md` contrastado con `src/` real: los 20 archivos de `src/` aparecen y todas las rutas citadas existen (los `<f>`, `<name>` y `{…}` son plantillas); incluye árbol, regla de `src/pages/`, regla de ubicación de componentes, regla de `src/lib/`, receta «add a feature» (5 pasos), receta «add a component» (5 pasos) y la sección de seguridad | — |
+| Los specs 01-04 no contienen cambios | ✅ | `git diff main -- specs/01-login.md specs/02-auth-supabase.md specs/03-invitacion-confirmacion.md specs/04-toggle-visibilidad-contrasena.md` → vacío | — |
+
+Estado del proyecto Supabase tras la verificación: 1 usuario (`auth.users`), 1 perfil (`public.usuarios`), 0 sesiones
+(`auth.sessions`); no se creó ni borró ninguna fila.
