@@ -11,6 +11,7 @@ El acceso a la aplicación está protegido: solo las cuentas creadas por el labo
 - Inicio y cierre de sesión con Supabase Auth y sesión en cookies `httpOnly`.
 - Panel protegido (`/dashboard`) que muestra el perfil y el rol del usuario.
 - Acceso de administración (`/dashboard/admin/users`), visible solo para el rol `admin` y protegido con un 403 en el servidor.
+- Listado de los usuarios registrados con búsqueda por nombre o correo y paginación de 10 por página, resuelto en el servidor (sin JavaScript).
 - Flujo de invitación: el administrador genera un enlace, la aplicación envía el correo, el invitado confirma su correo y define su propia contraseña.
 - Esquema de base de datos con tabla de perfiles, roles y políticas RLS por tabla.
 - Estructura del proyecto organizada por funcionalidad (`src/features/`) con componentes reutilizables.
@@ -19,7 +20,7 @@ El acceso a la aplicación está protegido: solo las cuentas creadas por el labo
 **Pendiente**
 
 - Formulario de captura de donadores (el objetivo principal del producto).
-- Gestión de usuarios dentro del panel (listar, registrar, actualizar, eliminar y suspender): la ruta `/dashboard/admin/users` ya existe y está protegida por rol, pero su contenido es provisional.
+- Gestión de usuarios dentro del panel: registrar, actualizar, eliminar y suspender cuentas. El listado ya está implementado; faltan las acciones.
 - Interfaz de las invitaciones (`POST /api/invitations` ya existe, falta la pantalla).
 - Recuperación de contraseña («¿Olvidaste tu contraseña?»).
 
@@ -128,7 +129,7 @@ Con esa cuenta ya puedes entrar en `/dashboard` e invitar al resto del equipo.
 
 ### 6. Probar la API de invitaciones
 
-Todavía no hay interfaz de administración, así que la invitación se hace por HTTP. Ejemplo desde la raíz del proyecto:
+Todavía no hay interfaz para las invitaciones, así que la invitación se hace por HTTP. Ejemplo desde la raíz del proyecto:
 
 ```sh
 # 1. Iniciar sesión y guardar las cookies de sesión
@@ -186,11 +187,12 @@ Todos se ejecutan desde la raíz del proyecto.
 | `npm install` | Instala las dependencias. |
 | `npm run dev` | Levanta el servidor de desarrollo en `http://localhost:4321`. |
 | `npm run build` | Compila el sitio SSR en `./dist/`. Es la verificación principal. |
+| `npm run check` | `astro check`: comprueba los tipos del frontmatter de los `.astro`. |
 | `npm run preview` | Sirve localmente el build de producción. |
 | `npx tsc --noEmit` | Comprueba los tipos sin emitir archivos. |
 | `npx astro dev --background` | Servidor de desarrollo en segundo plano (`status`, `logs --follow` y `stop` lo gestionan). |
 
-No hay scripts de test, lint ni formateo. `astro check` no está instalado y `astro` no está en el `PATH`: usa siempre `npx astro ...`.
+No hay scripts de test, lint ni formateo. `astro` no está en el `PATH`: usa siempre `npx astro ...`.
 
 ## Estructura del proyecto
 
@@ -202,6 +204,7 @@ src/
 ├── lib/                                   # infraestructura compartida entre features
 │   ├── current-user.ts                    # perfil del solicitante (nombre, correo, rol)
 │   ├── database.types.ts                  # tipos de Supabase generados desde el MCP
+│   ├── roles.ts                           # tipo Rol y mapa ROL_INFO (etiqueta, clase del badge)
 │   └── supabase.ts                        # cliente de servidor (@supabase/ssr) con cookies
 ├── components/
 │   └── ui/                                # componentes usados por varias features
@@ -211,11 +214,13 @@ src/
 ├── features/
 │   ├── auth/components/                   # AuthCard, FormField, PasswordInput
 │   ├── dashboard/components/              # AdminUsersShortcutCard
-│   ├── users/components/                  # AdminUsersPanel
+│   ├── users/
+│   │   ├── components/                    # AdminUsersPanel, UsersSearchForm, UsersTable, UsersPagination
+│   │   └── lib/                           # users-list.ts (consulta, saneado y paginación)
 │   └── invitations/lib/                   # email.ts (nodemailer) y supabase-admin.ts
 └── pages/
-    ├── dashboard.astro                    # panel protegido
-    ├── dashboard/admin/users.astro        # administración de usuarios (solo admin)
+    ├── dashboard/index.astro              # panel protegido
+    ├── dashboard/admin/users.astro        # listado de usuarios (solo admin)
     ├── auth/{login,confirm,update-password}.astro
     └── api/
         ├── invitations.ts
@@ -239,7 +244,7 @@ Reglas de organización:
 | `/auth/confirm` | Verifica el token de invitación, crea la sesión y redirige a la elección de contraseña. |
 | `/auth/update-password` | `GET`: formulario de contraseña nueva. `POST`: valida y guarda la contraseña. |
 | `/dashboard` | Panel protegido: muestra el perfil y el rol del usuario. Solo el `admin` ve además la tarjeta «Administrar usuarios». |
-| `/dashboard/admin/users` | Administración de usuarios, solo para `admin`: responde 403 si la sesión no es de un administrador. |
+| `/dashboard/admin/users` | Listado de los usuarios registrados, solo para `admin`: responde 403 si la sesión no es de un administrador. Admite `?q=` (búsqueda por nombre o correo) y `?page=` (paginación de 10). |
 
 **API**
 
@@ -250,6 +255,15 @@ Reglas de organización:
 | `POST /api/invitations` | Solo para `admin`: genera el enlace de invitación y envía el correo. |
 
 El flujo de invitación es: **invitar → correo → confirmar el enlace → elegir contraseña → entrar al panel**.
+
+### Búsqueda y paginación de usuarios
+
+La pantalla de administración resuelve la búsqueda y la paginación **en el servidor**, con la query string: cada URL es compartible y la pantalla funciona sin JavaScript.
+
+- `?q=término` filtra por nombre o correo, sin distinguir mayúsculas. El término se sanea antes de llegar al filtro de PostgREST (solo se conservan letras, dígitos, espacio y `@ . - _`, y el guion bajo deja de actuar como comodín). El valor saneado es el que se muestra en el campo de búsqueda y en los enlaces de paginación: lo que se ve es lo que se busca.
+- `?page=n` indica el número de página, con 10 usuarios por página. Si la página no existe, se recorta a la última válida en lugar de fallar.
+- El listado se lee con la sesión del solicitante, de modo que es RLS quien decide qué filas se ven. La clave secreta (`sb_secret_…`) no interviene.
+- Limitación conocida: `ILIKE` no ignora los acentos, así que buscar `jose` no encuentra a `José`.
 
 ## Modelo de datos y roles
 
@@ -269,7 +283,7 @@ La tabla `public.usuarios` guarda el perfil de cada cuenta (nunca contraseñas) 
 | `supervisor` | Acceso al panel; por RLS puede leer los perfiles del equipo. |
 | `capturador` | Acceso al panel y a su propio perfil. |
 
-Los roles se distinguen en la interfaz en el área de administración de usuarios (visible solo para `admin` y con un 403 en el servidor para el resto) y en el endpoint de invitaciones. El resto de la interfaz está en desarrollo.
+Los roles se distinguen en la interfaz en el área de administración de usuarios (visible solo para `admin` y con un 403 en el servidor para el resto), en el listado de usuarios, donde cada fila muestra el rol con su etiqueta legible, y en el endpoint de invitaciones. El resto de la interfaz está en desarrollo.
 
 ## Despliegue en Netlify
 

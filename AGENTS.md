@@ -6,8 +6,9 @@
 - App must be responsive: it has to read clearly on smartphones and PCs (verified at 320 px, no horizontal scroll).
 - Astro 7 SSR site (`output: 'server'`) with the `@astrojs/netlify` adapter, Tailwind CSS 4 (Vite plugin) and daisyUI 5. No UI framework integration (React/Vue/Svelte).
 - Supabase Auth is wired through `@supabase/ssr` with server-side cookies: `src/lib/supabase.ts`, `src/middleware.ts` (session refresh and `/dashboard` protection), `POST /api/auth/login` and `POST /api/auth/logout`. `public.usuarios` stores the profile and role (`admin` / `supervisor` / `capturador`) with RLS; it never stores passwords.
-- Pages: `src/pages/auth/login.astro`, protected `src/pages/dashboard.astro`, role-protected `src/pages/dashboard/admin/users.astro` (403 unless the session is an `admin`), `src/pages/auth/confirm.astro` (verifies the invite token), `src/pages/auth/update-password.astro` (GET form + POST handler) and API routes `src/pages/api/{auth/login,auth/logout,invitations}.ts`; `/` redirects to `/auth/login` through `redirects` in `astro.config.mjs`. Only stylesheet: `src/styles/global.css`.
+- Pages: `src/pages/auth/login.astro`, protected `src/pages/dashboard/index.astro`, role-protected `src/pages/dashboard/admin/users.astro` (403 unless the session is an `admin`; lists the users with server-side search and pagination), `src/pages/auth/confirm.astro` (verifies the invite token), `src/pages/auth/update-password.astro` (GET form + POST handler) and API routes `src/pages/api/{auth/login,auth/logout,invitations}.ts`; `/` redirects to `/auth/login` through `redirects` in `astro.config.mjs`. Only stylesheet: `src/styles/global.css`.
 - Role checks live in page frontmatter, not in `src/middleware.ts`: the middleware only protects `/dashboard/*` by session. `src/lib/current-user.ts` (`getCurrentUser`) is the single reader of the requester's row in `public.usuarios`.
+- The user listing reads `public.usuarios` with the requester's own session client (`Astro.locals.supabase`), so RLS does the filtering; the secret key stays out of it. The search term is sanitized before it reaches the PostgREST filter (`sanitizeSearchTerm` in `src/features/users/lib/users-list.ts`).
 
 ## Structure
 
@@ -19,6 +20,7 @@ src/
 ├── lib/                                   # multi-feature infra
 │   ├── current-user.ts                    # requester's profile (nombre, email, rol) + getCurrentUser()
 │   ├── database.types.ts                  # Supabase types generated from the MCP
+│   ├── roles.ts                           # Rol type + ROL_INFO map (label, badge class)
 │   └── supabase.ts                        # @supabase/ssr server client factory
 ├── components/
 │   └── ui/                                # components used across features
@@ -35,14 +37,20 @@ src/
 │   │   └── components/
 │   │       └── AdminUsersShortcutCard.astro # admin-only card linking to /dashboard/admin/users
 │   ├── users/
-│   │   └── components/
-│   │       └── AdminUsersPanel.astro     # prop denied?: access-denied alert or pending text
+│   │   ├── components/
+│   │   │   ├── AdminUsersPanel.astro      # props denied?/result?: card that composes the three below
+│   │   │   ├── UsersSearchForm.astro      # GET form (q) + «Quitar filtro»
+│   │   │   ├── UsersTable.astro           # table (nombre, correo, rol) + empty states
+│   │   │   └── UsersPagination.astro      # daisyUI join of page links
+│   │   └── lib/
+│   │       └── users-list.ts              # listUsers(), countUsers(), fetchUsersPage(),
+│   │                                      # sanitizeSearchTerm(), buildPageWindow()
 │   └── invitations/
 │       └── lib/
 │           ├── email.ts                   # nodemailer SMTP sender
 │           └── supabase-admin.ts          # admin client using SUPABASE_SECRET_API_KEY
 └── pages/
-    ├── dashboard.astro                    # profile card (+ admin shortcut card)
+    ├── dashboard/index.astro              # profile card (+ admin shortcut card)
     ├── dashboard/admin/users.astro        # role guard: Astro.response.status = 403 if not admin
     ├── auth/{login,confirm,update-password}.astro
     └── api/
