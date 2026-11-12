@@ -2,6 +2,7 @@
 import BaseLayout from '../components/ui/BaseLayout.astro'
 import AlertError from '../components/ui/AlertError.astro'
 import AppNavbar from '../components/ui/AppNavbar.astro'
+import AdminUsersShortcutCard from '../features/dashboard/components/AdminUsersShortcutCard.astro'
 import { getCurrentUser } from '../lib/current-user'
 import type { Database } from '../lib/database.types'
 
@@ -22,13 +23,15 @@ const ROL_INFO: Record<Rol, { label: string; className: string }> = {
 }
 
 const rolInfo = usuario ? ROL_INFO[usuario.rol] : null
+
+const isAdmin = usuario?.rol === 'admin'
 ---
 
 <BaseLayout title="Panel | Dona de sangre">
 	<div class="flex min-h-svh flex-col">
 		<AppNavbar />
 
-		<main class="flex flex-1 items-start justify-center p-4 sm:items-center sm:p-6">
+		<main class="flex flex-1 flex-col items-center justify-start gap-4 p-4 sm:justify-center sm:p-6">
 			<section class="card w-full max-w-md bg-base-100 shadow-xl">
 				<div class="card-body gap-4">
 					<h1 class="card-title text-xl">Tu perfil</h1>
@@ -57,6 +60,8 @@ const rolInfo = usuario ? ROL_INFO[usuario.rol] : null
 					)}
 				</div>
 			</section>
+
+			{isAdmin && <AdminUsersShortcutCard />}
 		</main>
 	</div>
 </BaseLayout>
