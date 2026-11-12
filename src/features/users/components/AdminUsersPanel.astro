@@ -1,26 +1,49 @@
 ---
 import AlertError from '../../../components/ui/AlertError.astro'
+import { USERS_PER_PAGE, type UsersListResult } from '../lib/users-list'
+import UsersPagination from './UsersPagination.astro'
+import UsersSearchForm from './UsersSearchForm.astro'
+import UsersTable from './UsersTable.astro'
 
 interface Props {
 	denied?: boolean
+	result?: UsersListResult
 }
 
-const { denied = false } = Astro.props
+const { denied = false, result } = Astro.props
+
+const desde = result ? (result.page - 1) * USERS_PER_PAGE + 1 : 0
+const hasta = result ? desde + result.usuarios.length - 1 : 0
 ---
 
-<section class="card w-full max-w-md bg-base-100 shadow-xl">
+<section class="card w-full max-w-4xl bg-base-100 shadow-xl">
 	<div class="card-body gap-4">
 		<h1 class="card-title text-xl">Administrar usuarios</h1>
 
-		{denied ? (
-			<AlertError>
-				<span>Acceso denegado: esta sección está reservada a los administradores.</span>
-			</AlertError>
-		) : (
-			<p>
-				La gestión de usuarios (registrar, actualizar, eliminar y suspender cuentas) llegará en una
-				entrega posterior.
-			</p>
-		)}
+		{
+			denied ? (
+				<AlertError>
+					<span>Acceso denegado: esta sección está reservada a los administradores.</span>
+				</AlertError>
+			) : result ? (
+				<>
+					<UsersSearchForm search={result.search} />
+
+					<UsersTable usuarios={result.usuarios} search={result.search} />
+
+					{result.usuarios.length > 0 && (
+						<p class="text-sm text-base-content/60">
+							Mostrando {desde}–{hasta} de {result.total} usuarios
+						</p>
+					)}
+
+					<UsersPagination
+						page={result.page}
+						totalPages={result.totalPages}
+						search={result.search}
+					/>
+				</>
+			) : null
+		}
 	</div>
 </section>
