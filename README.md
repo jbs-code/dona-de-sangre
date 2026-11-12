@@ -1,53 +1,305 @@
-# Dona De Sangre
+# Dona de Sangre
 
-## Descripción
+Aplicación web para gestionar el registro de donadores de sangre de un laboratorio de investigación biomédica enfocado principalmente en cáncer de mama.
 
-Nuestra aplicación consiste en un formulario para manejar información acerca de donadores de sangre en un laboratorio de investigación biomédica enfocada principalmente en cáncer de mama:
+El acceso a la aplicación está protegido: solo las cuentas creadas por el laboratorio pueden entrar, y cada una tiene un rol (`admin`, `supervisor` o `capturador`) que determina qué puede hacer.
 
-- La aplicación contiene una capa de autenticación para que el manejo de el formulario esté controlado.
-- Utilizamos Supabase para el manejo de base de datos y la capa de autenticación.
+## Estado del proyecto
 
-## Astro Starter Kit: Minimal
+**Implementado**
+
+- Inicio y cierre de sesión con Supabase Auth y sesión en cookies `httpOnly`.
+- Panel protegido (`/dashboard`) que muestra el perfil y el rol del usuario.
+- Flujo de invitación: el administrador genera un enlace, la aplicación envía el correo, el invitado confirma su correo y define su propia contraseña.
+- Esquema de base de datos con tabla de perfiles, roles y políticas RLS por tabla.
+- Estructura del proyecto organizada por funcionalidad (`src/features/`) con componentes reutilizables.
+- Tema propio de daisyUI (`dona` claro y `dona-dark` oscuro) y diseño responsive verificado a 320 px.
+
+**Pendiente**
+
+- Formulario de captura de donadores (el objetivo principal del producto).
+- Panel de administración en la aplicación (la API de invitaciones ya existe, falta la interfaz).
+- Recuperación de contraseña («¿Olvidaste tu contraseña?»).
+
+## Stack tecnológico
+
+| Pieza | Tecnología |
+| ----- | ---------- |
+| Framework | Astro 7 en modo SSR (`output: 'server'`) |
+| Adaptador de despliegue | `@astrojs/netlify` |
+| Estilos | Tailwind CSS 4 (plugin de Vite) + daisyUI 5, sin framework UI |
+| Base de datos y autenticación | Supabase (Postgres + Auth) |
+| Cliente de Supabase | `@supabase/ssr` con cookies de servidor |
+| Correo | `nodemailer` contra el SMTP de Gmail |
+| Lenguaje | TypeScript (`strict`) |
+
+## Requisitos previos
+
+- **Node.js ≥ 22.23.4** (declarado en `package.json`; `netlify.toml` fija la versión 22 en el despliegue).
+- **npm** 10 o superior.
+- Una **cuenta de Supabase** con un proyecto creado.
+- Una **cuenta de Gmail** con verificación en dos pasos activada (para poder generar una contraseña de aplicación).
+
+## Instalación
 
 ```sh
-npm create astro@latest -- --template minimal
+git clone <url-del-repositorio>
+cd dona-de-sangre
+npm install
+cp .env.template .env   # y rellénalo con la sección "Variables de entorno"
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+## Variables de entorno
 
-## 🚀 Project Structure
+Todas se declaran en `astro.config.mjs` con `context: 'server'` y `access: 'secret'`, así que **solo existen en el servidor**: nunca llegan al HTML ni al JS que se envía al navegador, y nunca aparecen en `dist/`. Por eso ninguna lleva el prefijo `PUBLIC_`.
 
-Inside of your Astro project, you'll see the following folders and files:
+El archivo `.env` está en `.gitignore` y es local; `.env.template` está versionado y solo contiene placeholders.
+
+| Variable | Para qué sirve | Dónde se obtiene | Obligatoria |
+| -------- | -------------- | ---------------- | ----------- |
+| `SUPABASE_URL` | URL del proyecto (`https://<ref>.supabase.co`). | Supabase → Project Settings → API → Project URL | Sí |
+| `SUPABASE_KEY` | Clave publicable (`sb_publishable_…`) o clave `anon` heredada. Se usa como clave de cliente en el servidor. | Supabase → Project Settings → API → Publishable keys | Sí |
+| `SUPABASE_SECRET_API_KEY` | Clave secreta (`sb_secret_…`), sustituta actual de `service_role`. Solo la usa `auth.admin.generateLink` para generar invitaciones. | Supabase → Project Settings → API → Secret keys | Sí |
+| `SUPABASE_DB_PASSWORD` | Contraseña de la base de datos. La usan la CLI y el MCP de Supabase; el sitio no la necesita. | Supabase → Project Settings → Database | Solo si usas la CLI/MCP |
+| `SMTP_HOST` | Servidor SMTP de Gmail. | `smtp.gmail.com` | Sí |
+| `SMTP_PORT` | Puerto SMTP con TLS directo. | `465` | Sí |
+| `SMTP_USER` | Cuenta de Gmail que envía los correos; también es la dirección «De». | Tu dirección de Gmail | Sí |
+| `SMTP_PASS` | Contraseña de aplicación de Google (16 caracteres). | myaccount.google.com → Contraseñas de aplicación | Sí |
+
+> `SUPABASE_SECRET_API_KEY` y las variables `SMTP_*` son secretos de servidor: no deben usarse en páginas, scripts de cliente ni en el repositorio.
+
+## Configuración de Supabase
+
+### 1. Crear el proyecto
+
+En [supabase.com](https://supabase.com), crea un proyecto y **guarda la contraseña de la base de datos**: es el valor de `SUPABASE_DB_PASSWORD` y solo se muestra una vez.
+
+### 2. Aplicar la migración
+
+El esquema de la aplicación está versionado en `supabase/migrations/20261107235752_create_usuarios.sql`. Aplícalo una sola vez con cualquiera de estas vías:
+
+- **Dashboard** → SQL Editor: pega el contenido del archivo y ejecuta.
+- **MCP de Supabase**: `apply_migration` con el mismo SQL.
+- **CLI** (no hay `supabase/config.toml` en el repositorio; habría que inicializarlo):
+
+  ```sh
+  npx supabase init
+  npx supabase link --project-ref <ref-del-proyecto>
+  npx supabase db push
+  ```
+
+La migración crea el enum `rol_usuario`, la tabla `public.usuarios`, activa RLS sobre ella, define las políticas de lectura y añade los triggers `on_auth_user_created` y `on_auth_user_email_updated` sobre `auth.users`.
+
+### 3. Configurar la autenticación
+
+En el panel de Supabase:
+
+- **Authentication → URL Configuration**
+  - *Site URL*: `http://localhost:4321` en desarrollo; la URL pública (`https://<sitio>.netlify.app`) en producción.
+  - *Redirect URLs*: `http://localhost:4321/**` y `https://<sitio>.netlify.app/**`.
+- **Authentication → Sign In / Providers → Email**: activa el proveedor de correo y deja **«Confirm email» activado**.
+- **Authentication → Policies → Password Settings**: longitud mínima de contraseña de **8 caracteres**.
+
+El correo no lo envía Supabase: la aplicación genera el enlace con `auth.admin.generateLink` y lo manda por su propio SMTP. Por eso **no se debe usar el botón «Invite user» del Dashboard**, que provocaría un segundo correo desde Supabase.
+
+### 4. Copiar las claves
+
+En **Project Settings → API**:
+
+- *Publishable keys* → `SUPABASE_KEY`.
+- *Secret keys* → `SUPABASE_SECRET_API_KEY` (empieza por `sb_secret_`).
+
+### 5. Crear la primera cuenta y promoverla a administrador
+
+No hay registro público: las cuentas las crea el laboratorio. La primera cuenta debe nacerse con permisos, porque **el endpoint de invitaciones solo puede usarse con un `admin` ya existente**.
+
+1. Crea la cuenta en **Authentication → Users → Add user → Create new user**, con correo, contraseña y la casilla **«Auto Confirm User»** marcada. El trigger `on_auth_user_created` inserta automáticamente la fila en `public.usuarios` con `rol = 'capturador'`.
+2. Promuévela a administrador, desde el Table Editor o desde el SQL Editor:
+
+   ```sql
+   update public.usuarios
+   set rol = 'admin'
+   where email = 'admin@laboratorio.org';
+   ```
+
+Con esa cuenta ya puedes entrar en `/dashboard` e invitar al resto del equipo.
+
+### 6. Probar la API de invitaciones
+
+Todavía no hay interfaz de administración, así que la invitación se hace por HTTP. Ejemplo desde la raíz del proyecto:
+
+```sh
+# 1. Iniciar sesión y guardar las cookies de sesión
+curl -c cookies.txt -X POST http://localhost:4321/api/auth/login \
+  -d 'email=admin@laboratorio.org' -d 'password=tu-contrasena'
+
+# 2. Invitar a un nuevo usuario (solo admin)
+curl -b cookies.txt -X POST http://localhost:4321/api/invitations \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"nuevo@laboratorio.org"}'
+```
+
+La respuesta es `{"ok":true}` si el correo se envió. `401` indica que falta la sesión y `403` que el usuario no es `admin`.
+
+## Configuración de Gmail (SMTP)
+
+Los correos de invitación los envía la propia aplicación con `nodemailer`, usando el SMTP de Gmail:
+
+1. Activa la **verificación en dos pasos** en la cuenta de Google.
+2. Entra en [myaccount.google.com](https://myaccount.google.com) → **Seguridad** → **Verificación en dos pasos** → **Contraseñas de aplicación**.
+3. Crea una contraseña de aplicación (por ejemplo con el nombre «Dona de Sangre»). Google muestra 16 caracteres en una sola vez.
+4. Rellena las variables:
+
+   ```sh
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=465
+   SMTP_USER=tu-cuenta@gmail.com
+   SMTP_PASS=la-contrasena-de-aplicacion
+   ```
+
+Consideraciones importantes:
+
+- **Usa siempre una contraseña de aplicación**, nunca la contraseña real de Google: la contraseña real no funciona con SMTP.
+- El remitente es `SMTP_USER`. Si el correo acaba en spam, añade el remitente a los contactos del laboratorio.
+- Gmail permite alrededor de **500 correos al día** (menos en cuentas nuevas), suficiente para el caso del laboratorio. Si el volumen crece, hay que migrar a otro proveedor (Resend, SendGrid…).
+- Si la contraseña de aplicación se revoca o caduca, los envíos fallan: el error queda registrado en el servidor (`[invitations] fallo SMTP:`) y `POST /api/invitations` responde con un mensaje genérico. Para rotarla, genera una nueva en Google y actualiza `SMTP_PASS`.
+- El enlace de invitación **caduca en 1 hora** y solo puede usarse una vez. Si caduca, hay que volver a invitar al mismo correo.
+
+## Puesta en marcha
+
+```sh
+npm install
+cp .env.template .env    # rellena los valores
+npm run dev
+```
+
+La aplicación queda en `http://localhost:4321`; la ruta `/` redirige a `/auth/login`.
+
+## Scripts y comandos
+
+Todos se ejecutan desde la raíz del proyecto.
+
+| Comando | Qué hace |
+| ------- | -------- |
+| `npm install` | Instala las dependencias. |
+| `npm run dev` | Levanta el servidor de desarrollo en `http://localhost:4321`. |
+| `npm run build` | Compila el sitio SSR en `./dist/`. Es la verificación principal. |
+| `npm run preview` | Sirve localmente el build de producción. |
+| `npx tsc --noEmit` | Comprueba los tipos sin emitir archivos. |
+| `npx astro dev --background` | Servidor de desarrollo en segundo plano (`status`, `logs --follow` y `stop` lo gestionan). |
+
+No hay scripts de test, lint ni formateo. `astro check` no está instalado y `astro` no está en el `PATH`: usa siempre `npx astro ...`.
+
+## Estructura del proyecto
 
 ```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
+src/
+├── middleware.ts                          # refresco de sesión y protección de /dashboard
+├── env.d.ts                               # tipos de astro:env y App.Locals
+├── styles/global.css                      # Tailwind 4 + daisyUI y los temas dona / dona-dark
+├── lib/                                   # infraestructura compartida entre features
+│   ├── database.types.ts                  # tipos de Supabase generados desde el MCP
+│   └── supabase.ts                        # cliente de servidor (@supabase/ssr) con cookies
+├── components/
+│   └── ui/                                # componentes usados por varias features
+│       ├── BaseLayout.astro               # <head>, <body>, importa global.css
+│       └── AlertError.astro               # aviso de error accesible
+├── features/
+│   ├── auth/components/                   # AuthCard, FormField, PasswordInput
+│   ├── dashboard/components/              # AppNavbar
+│   └── invitations/lib/                   # email.ts (nodemailer) y supabase-admin.ts
+└── pages/
+    ├── dashboard.astro                    # panel protegido
+    ├── auth/{login,confirm,update-password}.astro
+    └── api/
+        ├── invitations.ts
+        └── auth/{login,logout}.ts
 ```
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+Reglas de organización:
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+- `src/pages/` solo contiene enrutado y frontmatter; el marcado vive en componentes.
+- Un componente compartido por varias features va en `src/components/ui/`; uno de una sola feature, en `src/features/<feature>/components/`.
+- `src/lib/` es infraestructura común; el código de una sola feature va en `src/features/<feature>/lib/`.
 
-Any static assets, like images, can be placed in the `public/` directory.
+## Rutas de la aplicación
 
-## 🧞 Commands
+**Páginas**
 
-All commands are run from the root of the project, from a terminal:
+| Ruta | Descripción |
+| ---- | ----------- |
+| `/` | Redirige a `/auth/login`. |
+| `/auth/login` | Formulario de inicio de sesión. |
+| `/auth/confirm` | Verifica el token de invitación, crea la sesión y redirige a la elección de contraseña. |
+| `/auth/update-password` | `GET`: formulario de contraseña nueva. `POST`: valida y guarda la contraseña. |
+| `/dashboard` | Panel protegido: muestra el perfil y el rol del usuario. |
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
+**API**
 
-## 👀 Want to learn more?
+| Ruta | Descripción |
+| ---- | ----------- |
+| `POST /api/auth/login` | Inicia sesión con correo y contraseña. |
+| `POST /api/auth/logout` | Cierra la sesión. |
+| `POST /api/invitations` | Solo para `admin`: genera el enlace de invitación y envía el correo. |
 
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+El flujo de invitación es: **invitar → correo → confirmar el enlace → elegir contraseña → entrar al panel**.
 
+## Modelo de datos y roles
+
+La tabla `public.usuarios` guarda el perfil de cada cuenta (nunca contraseñas) y se crea automáticamente mediante un trigger sobre `auth.users`.
+
+| Columna | Tipo | Notas |
+| ------- | ---- | ----- |
+| `id` | `uuid` | Clave primaria y referencia a `auth.users` (borrado en cascada). |
+| `nombre` | `text` | Obligatorio, entre 1 y 120 caracteres. |
+| `email` | `text` | Obligatorio y único, en minúsculas. |
+| `rol` | `rol_usuario` | `admin`, `supervisor` o `capturador`. Por defecto `capturador`. |
+| `created_at` | `timestamptz` | Fecha de alta. |
+
+| Rol | Permisos actuales |
+| --- | ----------------- |
+| `admin` | Acceso al panel e invitaciones (`POST /api/invitations`). |
+| `supervisor` | Acceso al panel; por RLS puede leer los perfiles del equipo. |
+| `capturador` | Acceso al panel y a su propio perfil. |
+
+El único punto que hoy distingue roles es el endpoint de invitaciones. El resto de la interfaz está en desarrollo.
+
+## Despliegue en Netlify
+
+`netlify.toml` ya define la compilación (`npm run build`), el directorio publicado (`dist`) y la versión de Node.
+
+1. Importa el repositorio en Netlify desde GitHub. La configuración de build se detecta sola a partir de `netlify.toml`.
+2. En **Site configuration → Environment variables**, define las variables de servidor: `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SECRET_API_KEY`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` y `SMTP_PASS`. Netlify las expone al build y a las funciones de servidor, que es donde Astro lee los secretos de `astro:env`.
+3. Actualiza la configuración de Supabase: en **Authentication → URL Configuration**, pon la URL de Netlify como *Site URL* y añade `https://<sitio>.netlify.app/**` a las *Redirect URLs*.
+4. Despliega. El enlace de las invitaciones se construye con el origen de la petición, así que ya apunta al dominio de Netlify.
+
+No subas el archivo `.env` al repositorio: las credenciales viajan siempre por las variables de entorno de Netlify.
+
+## Seguridad
+
+- Todas las variables sensibles son secretos de servidor (`context: 'server'`, `access: 'secret'`): no aparecen en el HTML, en el JS servido al cliente ni en `dist/`.
+- RLS está activo en `public.usuarios` con políticas por tabla: un usuario autenticado solo puede leer su propio perfil, y `admin` o `supervisor` pueden leer los del equipo.
+- La clave secreta (`sb_secret_…`) solo se usa en `src/features/invitations/lib/supabase-admin.ts`, y ese módulo únicamente se importa desde rutas de API.
+- Las cookies de sesión son `httpOnly`, `sameSite=lax` y `secure` en producción; las peticiones se autorizan con `getClaims()`, nunca con `getSession()`.
+- Las rutas bajo `/dashboard` son las únicas protegidas.
+
+## Solución de problemas
+
+| Síntoma | Causa habitual y solución |
+| ------- | ------------------------- |
+| El build muestra avisos `Invalid empty selector` | Vienen del CSS de daisyUI. Son no fatales y no afectan al sitio. |
+| `Missing or invalid environment variable` al arrancar | Falta alguna variable del esquema de `astro:env`. Revisa `.env` y `astro.config.mjs`. |
+| El correo de invitación no llega | Revisa `SMTP_*`, que la contraseña de aplicación siga vigente y el límite diario de Gmail; mira el log `[invitations] fallo SMTP:` en la salida del servidor. |
+| «Enlace no válido» al confirmar | El enlace caducó (1 hora) o ya se usó. Vuelve a invitar al mismo correo. |
+| `POST /api/invitations` devuelve 401 o 403 | Falta la sesión (401) o el usuario no tiene rol `admin` (403). |
+| `email_exists` al invitar | El correo ya tiene cuenta: no se crea una segunda y la respuesta es genérica. |
+
+## Desarrollo con specs
+
+Los cambios se planifican antes de escribirse, en `specs/NN-slug.md`:
+
+- `/spec` redacta el documento del spec; nunca toca el código de la aplicación.
+- `/spec-impl` es el único flujo que modifica código, y solo si el spec está en estado *Approved*. Implementa un paso cada vez y espera la revisión humana.
+- `spec-verifier` comprueba los criterios de aceptación y solo edita lo que hay bajo `specs/`.
+
+El detalle completo del flujo y de las reglas del repositorio está en [AGENTS.md](./AGENTS.md).
