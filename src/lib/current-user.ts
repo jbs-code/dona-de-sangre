@@ -5,6 +5,7 @@ export type CurrentUser = {
 	nombre: string
 	email: string
 	rol: Database['public']['Enums']['rol_usuario']
+	estatus: Database['public']['Enums']['estatus_usuario']
 }
 
 export type CurrentUserResult = {
@@ -18,9 +19,9 @@ export async function getCurrentUser(
 ): Promise<CurrentUserResult> {
 	const { data, error } = await supabase
 		.from('usuarios')
-		.select('nombre, email, rol')
+		.select('nombre, email, rol, estatus')
 		.eq('id', claims.sub)
-		.single()
+		.maybeSingle()
 
 	return {
 		data: data ?? null,
