@@ -3,7 +3,6 @@ import BaseLayout from '../../components/ui/BaseLayout.astro'
 import AlertError from '../../components/ui/AlertError.astro'
 import AppNavbar from '../../components/ui/AppNavbar.astro'
 import AdminUsersShortcutCard from '../../features/dashboard/components/AdminUsersShortcutCard.astro'
-import { getCurrentUser } from '../../lib/current-user'
 import { ROL_INFO } from '../../lib/roles'
 
 const claims = Astro.locals.claims
@@ -12,7 +11,8 @@ if (!claims) {
 	return Astro.redirect('/auth/login?next=%2Fdashboard')
 }
 
-const { data: usuario, error } = await getCurrentUser(Astro.locals.supabase, claims)
+// El middleware ya resolvió la fila del solicitante y su estatus.
+const usuario = Astro.locals.currentUser
 
 const rolInfo = usuario ? ROL_INFO[usuario.rol] : null
 
@@ -47,7 +47,7 @@ const isAdmin = usuario?.rol === 'admin'
 						</dl>
 					) : (
 						<AlertError>
-							<span>No se encontró tu perfil{error ? `: ${error.message}` : '.'}</span>
+							<span>No se encontró tu perfil.</span>
 						</AlertError>
 					)}
 				</div>

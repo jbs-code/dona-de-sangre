@@ -24,14 +24,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json(400, { error: 'Correo electrónico no válido.' });
   }
 
-  // RLS permite leer la propia fila; el guard es el rol del solicitante.
-  const { data: usuario } = await locals.supabase
-    .from('usuarios')
-    .select('rol')
-    .eq('id', locals.claims.sub)
-    .maybeSingle();
-
-  if (usuario?.rol !== 'admin') {
+  // El middleware ya resolvió la fila del solicitante y su rol.
+  if (locals.currentUser?.rol !== 'admin') {
     return json(403, { error: 'Se requiere rol de administrador.' });
   }
 
