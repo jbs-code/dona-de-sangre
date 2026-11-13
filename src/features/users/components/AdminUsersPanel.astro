@@ -1,6 +1,7 @@
 ---
 import AlertError from '../../../components/ui/AlertError.astro'
 import { USERS_PER_PAGE, type UsersListResult } from '../lib/users-list'
+import UsersInviteModal from './UsersInviteModal.astro'
 import UsersPagination from './UsersPagination.astro'
 import UsersSearchForm from './UsersSearchForm.astro'
 import UsersTable from './UsersTable.astro'
@@ -14,11 +15,23 @@ const { denied = false, result } = Astro.props
 
 const desde = result ? (result.page - 1) * USERS_PER_PAGE + 1 : 0
 const hasta = result ? desde + result.usuarios.length - 1 : 0
+// Solo la rama autorizada puede dar de alta personas: el botón y el modal no se renderizan si no.
+const autorizado = !denied && result !== undefined
 ---
 
 <section class="card w-full max-w-4xl bg-base-100 shadow-xl">
 	<div class="card-body gap-4">
-		<h1 class="card-title text-xl">Administrar usuarios</h1>
+		<div class="flex flex-wrap items-center justify-between gap-2">
+			<h1 class="card-title text-xl">Administrar usuarios</h1>
+
+			{
+				autorizado && (
+					<button type="button" class="btn btn-primary btn-sm" data-invite-open>
+						Agregar usuario
+					</button>
+				)
+			}
+		</div>
 
 		{
 			denied ? (
@@ -48,3 +61,5 @@ const hasta = result ? desde + result.usuarios.length - 1 : 0
 		}
 	</div>
 </section>
+
+{autorizado && <UsersInviteModal />}

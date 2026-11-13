@@ -110,8 +110,8 @@ import { ROL_INFO, ROL_VALUES } from '../../../lib/roles'
 	const resumenEmail = query('[data-resumen="email"]')
 	const resumenRol = query('[data-resumen="rol"]')
 	const botonEnviar = query<HTMLButtonElement>('[data-accion="enviar"]')
-	const botonVolver = query<HTMLButtonElement>('[data-accion="volver"]')
 	const botonCerrarListado = query<HTMLButtonElement>('[data-accion="cerrar-listado"]')
+	const botonesVolver = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-accion="volver"]'))
 	const resultado = query('[data-resultado]')
 
 	const vistas = {
@@ -153,18 +153,17 @@ import { ROL_INFO, ROL_VALUES } from '../../../lib/roles'
 
 	function mostrarExito(email: string) {
 		pintarAlerta(`Invitación enviada a ${email}`, 'alert-success')
-		botonVolver?.classList.add('hidden')
+		botonesVolver.forEach((boton) => boton.classList.add('hidden'))
 		botonCerrarListado?.classList.remove('hidden')
 		mostrarVista('result')
 	}
 
 	function mostrarError(mensaje: string) {
 		pintarAlerta(mensaje, 'alert-error')
-		botonVolver?.classList.remove('hidden')
+		botonesVolver.forEach((boton) => boton.classList.remove('hidden'))
 		botonCerrarListado?.classList.add('hidden')
 		mostrarVista('result')
 	}
-
 	form?.addEventListener('submit', (event) => {
 		// El paso previo no envía nada: solo muestra el resumen de los datos.
 		event.preventDefault()
@@ -177,8 +176,10 @@ import { ROL_INFO, ROL_VALUES } from '../../../lib/roles'
 		mostrarVista('confirm')
 	})
 
-	botonVolver?.addEventListener('click', () => {
-		mostrarVista('form')
+	botonesVolver.forEach((boton) => {
+		boton.addEventListener('click', () => {
+			mostrarVista('form')
+		})
 	})
 
 	botonCerrarListado?.addEventListener('click', () => {
