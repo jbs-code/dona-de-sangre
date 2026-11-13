@@ -35,6 +35,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     await sendInviteEmail({
       origin: new URL(request.url).origin,
       email: parsed.input.email,
+      nombre: parsed.input.nombre,
       tokenHash: created.tokenHash
     });
   } catch (smtpError) {
