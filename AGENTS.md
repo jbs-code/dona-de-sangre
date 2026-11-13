@@ -5,21 +5,23 @@
 - Blood-donor registry form for a breast-cancer research lab. `README.md` is in Spanish and mostly Astro starter boilerplate; its intro is the only real product description.
 - App must be responsive: it has to read clearly on smartphones and PCs (verified at 320 px, no horizontal scroll).
 - Astro 7 SSR site (`output: 'server'`) with the `@astrojs/netlify` adapter, Tailwind CSS 4 (Vite plugin) and daisyUI 5. No UI framework integration (React/Vue/Svelte).
-- Supabase Auth is wired through `@supabase/ssr` with server-side cookies: `src/lib/supabase.ts`, `src/middleware.ts` (session refresh and `/dashboard` protection), `POST /api/auth/login` and `POST /api/auth/logout`. `public.usuarios` stores the profile and role (`admin` / `supervisor` / `capturador`) with RLS; it never stores passwords.
-- Pages: `src/pages/auth/login.astro`, protected `src/pages/dashboard/index.astro`, role-protected `src/pages/dashboard/admin/users.astro` (403 unless the session is an `admin`; lists the users with server-side search and pagination), `src/pages/auth/confirm.astro` (verifies the invite token), `src/pages/auth/update-password.astro` (GET form + POST handler) and API routes `src/pages/api/{auth/login,auth/logout,invitations}.ts`; `/` redirects to `/auth/login` through `redirects` in `astro.config.mjs`. Only stylesheet: `src/styles/global.css`.
-- Role checks live in page frontmatter, not in `src/middleware.ts`: the middleware only protects `/dashboard/*` by session. `src/lib/current-user.ts` (`getCurrentUser`) is the single reader of the requester's row in `public.usuarios`.
-- The user listing reads `public.usuarios` with the requester's own session client (`Astro.locals.supabase`), so RLS does the filtering; the secret key stays out of it. The search term is sanitized before it reaches the PostgREST filter (`sanitizeSearchTerm` in `src/features/users/lib/users-list.ts`).
+- Supabase Auth is wired through `@supabase/ssr` with server-side cookies: `src/lib/supabase.ts`, `src/middleware.ts` (session refresh, `/dashboard` protection and the account-status check), `POST /api/auth/login` and `POST /api/auth/logout`. `public.usuarios` stores the profile, the role (`admin` / `supervisor` / `capturador`) and the status (`activo` / `inactivo`) with RLS; it never stores passwords.
+- Pages: `src/pages/auth/login.astro`, protected `src/pages/dashboard/index.astro`, role-protected `src/pages/dashboard/admin/users.astro` (403 unless the session is an `admin`; lists the users with server-side search, status filter and pagination), `src/pages/auth/confirm.astro` (verifies the invite token), `src/pages/auth/update-password.astro` (GET form + POST handler), `src/pages/cuenta-desactivada.astro` (403 shown to a deactivated account) and API routes `src/pages/api/{auth/login,auth/logout,invitations}.ts`; `/` redirects to `/auth/login` through `redirects` in `astro.config.mjs`. Only stylesheet: `src/styles/global.css`.
+- Role checks live in page frontmatter, not in `src/middleware.ts`: the middleware only protects `/dashboard/*` by session and blocks deactivated accounts. `src/lib/current-user.ts` (`getCurrentUser`) is the single reader of the requester's row in `public.usuarios`; the middleware resolves it once per request and exposes it as `Astro.locals.currentUser`.
+- Deactivated accounts are blocked in two layers: a database trigger keeps `auth.users.banned_until` in sync with `public.usuarios.estatus` (so `signInWithPassword` fails), and the middleware closes the session and answers 403 on any request with a session whose status is `inactivo` (302 to `/cuenta-desactivada` for pages, JSON for `/api/*`, 503 if the status cannot be read). The status is not editable from the app yet: it is changed with an `UPDATE` in the Supabase dashboard.
+- The user listing reads `public.usuarios` with the requester's own session client (`Astro.locals.supabase`), so RLS does the filtering; the secret key stays out of it. The search term is sanitized before it reaches the PostgREST filter (`sanitizeSearchTerm` in `src/features/users/lib/users-list.ts`) and the status filter is a whitelist (`sanitizeEstatusFilter`).
 
 ## Structure
 
 ```text
 src/
-├── middleware.ts                          # session refresh + /dashboard protection
-├── env.d.ts                               # astro:env types
+├── middleware.ts                          # session refresh + /dashboard protection + status block
+├── env.d.ts                               # astro:env types + App.Locals (supabase, claims, currentUser)
 ├── styles/global.css                      # Tailwind 4 + daisyUI setup (only stylesheet)
 ├── lib/                                   # multi-feature infra
-│   ├── current-user.ts                    # requester's profile (nombre, email, rol) + getCurrentUser()
+│   ├── current-user.ts                    # requester's profile (nombre, email, rol, estatus) + getCurrentUser()
 │   ├── database.types.ts                  # Supabase types generated from the MCP
+│   ├── estatus.ts                         # Estatus type + ESTATUS_INFO map (label, badge class)
 │   ├── roles.ts                           # Rol type + ROL_INFO map (label, badge class)
 │   └── supabase.ts                        # @supabase/ssr server client factory
 ├── components/
@@ -39,17 +41,18 @@ src/
 │   ├── users/
 │   │   ├── components/
 │   │   │   ├── AdminUsersPanel.astro      # props denied?/result?: card that composes the three below
-│   │   │   ├── UsersSearchForm.astro      # GET form (q) + «Quitar filtro»
-│   │   │   ├── UsersTable.astro           # table (nombre, correo, rol) + empty states
-│   │   │   └── UsersPagination.astro      # daisyUI join of page links
+│   │   │   ├── UsersSearchForm.astro      # GET form (q + estatus) + «Quitar filtros»
+│   │   │   ├── UsersTable.astro           # table (nombre, correo, rol, estatus) + empty states
+│   │   │   └── UsersPagination.astro      # daisyUI join of page links (keeps q + estatus)
 │   │   └── lib/
 │   │       └── users-list.ts              # listUsers(), countUsers(), fetchUsersPage(),
-│   │                                      # sanitizeSearchTerm(), buildPageWindow()
+│   │                                      # sanitizeSearchTerm(), sanitizeEstatusFilter(), buildPageWindow()
 │   └── invitations/
 │       └── lib/
 │           ├── email.ts                   # nodemailer SMTP sender
 │           └── supabase-admin.ts          # admin client using SUPABASE_SECRET_API_KEY
 └── pages/
+    ├── cuenta-desactivada.astro           # 403 for a deactivated account (exempt from the status check)
     ├── dashboard/index.astro              # profile card (+ admin shortcut card)
     ├── dashboard/admin/users.astro        # role guard: Astro.response.status = 403 if not admin
     ├── auth/{login,confirm,update-password}.astro
@@ -113,7 +116,8 @@ Manage it with `npx astro dev stop`, `npx astro dev status`, and `npx astro dev 
 - Env vars live in `.env` (gitignored) and `.env.template` (tracked): `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_DB_PASSWORD`, plus `SUPABASE_SECRET_API_KEY` and `SMTP_*` (see the Email section below). `.env` is populated locally; never commit it or copy real values into `.env.template`.
 - `SUPABASE_URL` and `SUPABASE_KEY` are server-only: declared in `astro:env` as `context: 'server'`, `access: 'secret'` and read only by `src/lib/supabase.ts`. Never rename them to `PUBLIC_*` or expose them to client code. `SUPABASE_DB_PASSWORD` is CLI/MCP-only and must never reach the client.
 - Never use a `service_role`/secret key in frontend code. Enable RLS on every table in an exposed schema and write policies per table, not a blanket `auth.uid()`. `public.usuarios` already has RLS and `select`-only grants for `authenticated`.
-- Session cookies are `httpOnly`, `sameSite=lax` and `secure` only in production; requests are authorized with `getClaims()`, not `getSession()`. The middleware protects `/dashboard/*` by session only; role authorization is checked in page frontmatter.
+- Session cookies are `httpOnly`, `sameSite=lax` and `secure` only in production; requests are authorized with `getClaims()`, not `getSession()`. The middleware protects `/dashboard/*` by session and blocks deactivated accounts; role authorization is checked in page frontmatter.
+- `public.usuarios.estatus` is `public.estatus_usuario` (`activo` / `inactivo`), `not null` with default `activo`. The trigger `on_usuarios_estatus_changed` (`private.sync_user_estatus()`, `security definer` + `set search_path = ''`) mirrors it into `auth.users.banned_until`; it only fires when the value actually changes. Both migrations live in `supabase/migrations/`: `20261107235752_create_usuarios.sql` and `20261112185401_add_estatus_usuario.sql`.
 - Types are generated with `generate_typescript_types` from the MCP and stored in `src/lib/database.types.ts`; the server client is `SupabaseClient<Database>`.
 - The Supabase MCP server is configured globally in `~/.config/opencode/opencode.jsonc` (project ref `ugzbcrwykivvisbvpozo`, the same as `SUPABASE_URL` in `.env`), not in this repo's `opencode.jsonc`. Use it to inspect tables, migrations, logs, and advisors before changing the remote project.
 
@@ -124,6 +128,8 @@ Unchanged rules, restated here so they are never lost during refactors:
 - Server-only secrets: `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SECRET_API_KEY` and `SMTP_*` are `astro:env` server secrets; they must never appear in client code, in the served HTML/JS, or in `dist/`.
 - RLS on every table in an exposed schema, with per-table policies (details in Supabase above).
 - `service_role`/secret keys only in server code: `SUPABASE_SECRET_API_KEY` is read by `src/features/invitations/lib/supabase-admin.ts` from API routes, never from pages or client scripts.
+- The deactivated-account check fails closed: if the status cannot be read, the middleware answers 503 instead of letting the request through.
+- The login endpoint never reveals whether an account exists: `POST /api/auth/login` answers the same generic error for a wrong password and for a banned account.
 
 ## Email (SMTP)
 

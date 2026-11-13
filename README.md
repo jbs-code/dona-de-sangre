@@ -11,16 +11,17 @@ El acceso a la aplicación está protegido: solo las cuentas creadas por el labo
 - Inicio y cierre de sesión con Supabase Auth y sesión en cookies `httpOnly`.
 - Panel protegido (`/dashboard`) que muestra el perfil y el rol del usuario.
 - Acceso de administración (`/dashboard/admin/users`), visible solo para el rol `admin` y protegido con un 403 en el servidor.
-- Listado de los usuarios registrados con búsqueda por nombre o correo y paginación de 10 por página, resuelto en el servidor (sin JavaScript).
+- Listado de los usuarios registrados con búsqueda por nombre o correo, filtro por estatus y paginación de 10 por página, resuelto en el servidor (sin JavaScript).
+- Estatus de cada cuenta (`activo` / `inactivo`): una cuenta inactiva no puede iniciar sesión ni usar la aplicación, y el `admin` ve el estatus de cada persona en el listado.
 - Flujo de invitación: el administrador genera un enlace, la aplicación envía el correo, el invitado confirma su correo y define su propia contraseña.
-- Esquema de base de datos con tabla de perfiles, roles y políticas RLS por tabla.
+- Esquema de base de datos con tabla de perfiles, roles, estatus y políticas RLS por tabla.
 - Estructura del proyecto organizada por funcionalidad (`src/features/`) con componentes reutilizables.
 - Tema propio de daisyUI (`dona` claro y `dona-dark` oscuro) y diseño responsive verificado a 320 px.
 
 **Pendiente**
 
 - Formulario de captura de donadores (el objetivo principal del producto).
-- Gestión de usuarios dentro del panel: registrar, actualizar, eliminar y suspender cuentas. El listado ya está implementado; faltan las acciones.
+- Gestión de usuarios dentro del panel: registrar, actualizar, eliminar y cambiar el estatus de las cuentas. El listado y el bloqueo de las cuentas inactivas ya están implementados; faltan la pantalla para cambiar el estatus y el resto de acciones.
 - Interfaz de las invitaciones (`POST /api/invitations` ya existe, falta la pantalla).
 - Recuperación de contraseña («¿Olvidaste tu contraseña?»).
 
@@ -77,11 +78,16 @@ El archivo `.env` está en `.gitignore` y es local; `.env.template` está versio
 
 En [supabase.com](https://supabase.com), crea un proyecto y **guarda la contraseña de la base de datos**: es el valor de `SUPABASE_DB_PASSWORD` y solo se muestra una vez.
 
-### 2. Aplicar la migración
+### 2. Aplicar las migraciones
 
-El esquema de la aplicación está versionado en `supabase/migrations/20261107235752_create_usuarios.sql`. Aplícalo una sola vez con cualquiera de estas vías:
+El esquema de la aplicación está versionado en dos archivos de `supabase/migrations/`:
 
-- **Dashboard** → SQL Editor: pega el contenido del archivo y ejecuta.
+- `20261107235752_create_usuarios.sql` — enum `rol_usuario`, tabla `public.usuarios`, RLS, políticas de lectura y triggers sobre `auth.users`.
+- `20261112185401_add_estatus_usuario.sql` — enum `estatus_usuario`, columna `public.usuarios.estatus` y el trigger que sincroniza el estatus con `auth.users.banned_until`.
+
+Aplícalos una sola vez, en ese orden, con cualquiera de estas vías:
+
+- **Dashboard** → SQL Editor: pega el contenido de cada archivo y ejecuta.
 - **MCP de Supabase**: `apply_migration` con el mismo SQL.
 - **CLI** (no hay `supabase/config.toml` en el repositorio; habría que inicializarlo):
 
@@ -91,7 +97,7 @@ El esquema de la aplicación está versionado en `supabase/migrations/2026110723
   npx supabase db push
   ```
 
-La migración crea el enum `rol_usuario`, la tabla `public.usuarios`, activa RLS sobre ella, define las políticas de lectura y añade los triggers `on_auth_user_created` y `on_auth_user_email_updated` sobre `auth.users`.
+La primera migración crea el enum `rol_usuario`, la tabla `public.usuarios`, activa RLS sobre ella, define las políticas de lectura y añade los triggers `on_auth_user_created` y `on_auth_user_email_updated` sobre `auth.users`. La segunda añade el enum `estatus_usuario`, la columna `estatus` (obligatoria, por defecto `activo`) y el trigger `on_usuarios_estatus_changed`, que deja la cuenta baneada en Supabase Auth mientras el estatus sea `inactivo`.
 
 ### 3. Configurar la autenticación
 
@@ -198,12 +204,13 @@ No hay scripts de test, lint ni formateo. `astro` no está en el `PATH`: usa sie
 
 ```text
 src/
-├── middleware.ts                          # refresco de sesión y protección de /dashboard
+├── middleware.ts                          # refresco de sesión, protección de /dashboard y bloqueo por estatus
 ├── env.d.ts                               # tipos de astro:env y App.Locals
 ├── styles/global.css                      # Tailwind 4 + daisyUI y los temas dona / dona-dark
 ├── lib/                                   # infraestructura compartida entre features
-│   ├── current-user.ts                    # perfil del solicitante (nombre, correo, rol)
+│   ├── current-user.ts                    # perfil del solicitante (nombre, correo, rol, estatus)
 │   ├── database.types.ts                  # tipos de Supabase generados desde el MCP
+│   ├── estatus.ts                         # tipo Estatus y mapa ESTATUS_INFO (etiqueta, clase del badge)
 │   ├── roles.ts                           # tipo Rol y mapa ROL_INFO (etiqueta, clase del badge)
 │   └── supabase.ts                        # cliente de servidor (@supabase/ssr) con cookies
 ├── components/
@@ -219,6 +226,7 @@ src/
 │   │   └── lib/                           # users-list.ts (consulta, saneado y paginación)
 │   └── invitations/lib/                   # email.ts (nodemailer) y supabase-admin.ts
 └── pages/
+    ├── cuenta-desactivada.astro           # 403 para una cuenta desactivada
     ├── dashboard/index.astro              # panel protegido
     ├── dashboard/admin/users.astro        # listado de usuarios (solo admin)
     ├── auth/{login,confirm,update-password}.astro
@@ -244,7 +252,8 @@ Reglas de organización:
 | `/auth/confirm` | Verifica el token de invitación, crea la sesión y redirige a la elección de contraseña. |
 | `/auth/update-password` | `GET`: formulario de contraseña nueva. `POST`: valida y guarda la contraseña. |
 | `/dashboard` | Panel protegido: muestra el perfil y el rol del usuario. Solo el `admin` ve además la tarjeta «Administrar usuarios». |
-| `/dashboard/admin/users` | Listado de los usuarios registrados, solo para `admin`: responde 403 si la sesión no es de un administrador. Admite `?q=` (búsqueda por nombre o correo) y `?page=` (paginación de 10). |
+| `/dashboard/admin/users` | Listado de los usuarios registrados, solo para `admin`: responde 403 si la sesión no es de un administrador. Admite `?q=` (búsqueda por nombre o correo), `?estatus=` (`activo` o `inactivo`) y `?page=` (paginación de 10). |
+| `/cuenta-desactivada` | Aviso de cuenta desactivada. Responde 403 y no requiere sesión. |
 
 **API**
 
@@ -256,14 +265,39 @@ Reglas de organización:
 
 El flujo de invitación es: **invitar → correo → confirmar el enlace → elegir contraseña → entrar al panel**.
 
-### Búsqueda y paginación de usuarios
+### Búsqueda, filtro y paginación de usuarios
 
-La pantalla de administración resuelve la búsqueda y la paginación **en el servidor**, con la query string: cada URL es compartible y la pantalla funciona sin JavaScript.
+La pantalla de administración resuelve la búsqueda, el filtro y la paginación **en el servidor**, con la query string: cada URL es compartible y la pantalla funciona sin JavaScript.
 
 - `?q=término` filtra por nombre o correo, sin distinguir mayúsculas. El término se sanea antes de llegar al filtro de PostgREST (solo se conservan letras, dígitos, espacio y `@ . - _`, y el guion bajo deja de actuar como comodín). El valor saneado es el que se muestra en el campo de búsqueda y en los enlaces de paginación: lo que se ve es lo que se busca.
-- `?page=n` indica el número de página, con 10 usuarios por página. Si la página no existe, se recorta a la última válida en lugar de fallar.
+- `?estatus=activo` o `?estatus=inactivo` filtra por el estatus de la cuenta. Es una lista blanca: cualquier otro valor equivale a «Todos». El filtro se aplica en la consulta, tanto en el total como en las filas, de modo que ambos siempre coinciden.
+- `?page=n` indica el número de página, con 10 usuarios por página. Si la página no existe, se recorta a la última válida en lugar de fallar. Los enlaces de página arrastran `q` y `estatus`.
+- El formulario de búsqueda combina `q` y `estatus` y no incluye el número de página, así que al enviarlo el listado vuelve a la primera página.
+- «Quitar filtros» borra a la vez el texto de búsqueda y el filtro de estatus.
 - El listado se lee con la sesión del solicitante, de modo que es RLS quien decide qué filas se ven. La clave secreta (`sb_secret_…`) no interviene.
 - Limitación conocida: `ILIKE` no ignora los acentos, así que buscar `jose` no encuentra a `José`.
+
+## Estatus de las cuentas
+
+Cada cuenta de `public.usuarios` tiene un estatus: `activo` (por defecto) o `inactivo`. El estatus se aplica en dos capas.
+
+**En la base de datos.** Un trigger (`on_usuarios_estatus_changed`) mantiene `auth.users.banned_until` sincronizado con la columna: al poner `estatus = 'inactivo'` la cuenta queda baneada en Supabase Auth y `signInWithPassword` falla. Al volver a `activo`, el baneo se levanta.
+
+**En la aplicación.** El middleware comprueba el estatus en **toda** petición con sesión (no solo en `/dashboard/*`):
+
+- Si el estatus es `inactivo`, cierra la sesión y responde **403**: en las páginas, con una redirección a `/cuenta-desactivada`; en las rutas `/api/*`, con un JSON de error.
+- Si el estatus no se puede leer, responde **503**: se falla cerrado, porque sin base de datos no se puede comprobar el bloqueo.
+- La ruta `/cuenta-desactivada` está exenta de la comprobación, para que no se redirija a sí misma en bucle.
+
+El login no se modifica: `POST /api/auth/login` responde «Correo o contraseña incorrectos» tanto si la contraseña es errónea como si la cuenta está desactivada, de modo que no se revela qué correos existen.
+
+**El estatus todavía no se cambia desde la aplicación**: la interfaz de gestión de usuarios del panel administrativo llegará en un spec posterior. Mientras tanto se modifica con un `UPDATE` en el panel de Supabase:
+
+```sql
+update public.usuarios
+set estatus = 'inactivo'
+where email = 'persona@laboratorio.org';
+```
 
 ## Modelo de datos y roles
 
@@ -275,6 +309,7 @@ La tabla `public.usuarios` guarda el perfil de cada cuenta (nunca contraseñas) 
 | `nombre` | `text` | Obligatorio, entre 1 y 120 caracteres. |
 | `email` | `text` | Obligatorio y único, en minúsculas. |
 | `rol` | `rol_usuario` | `admin`, `supervisor` o `capturador`. Por defecto `capturador`. |
+| `estatus` | `estatus_usuario` | `activo` o `inactivo`. Obligatorio, por defecto `activo`. |
 | `created_at` | `timestamptz` | Fecha de alta. |
 
 | Rol | Permisos actuales |
@@ -283,7 +318,7 @@ La tabla `public.usuarios` guarda el perfil de cada cuenta (nunca contraseñas) 
 | `supervisor` | Acceso al panel; por RLS puede leer los perfiles del equipo. |
 | `capturador` | Acceso al panel y a su propio perfil. |
 
-Los roles se distinguen en la interfaz en el área de administración de usuarios (visible solo para `admin` y con un 403 en el servidor para el resto), en el listado de usuarios, donde cada fila muestra el rol con su etiqueta legible, y en el endpoint de invitaciones. El resto de la interfaz está en desarrollo.
+Los roles se distinguen en la interfaz en el área de administración de usuarios (visible solo para `admin` y con un 403 en el servidor para el resto), en el listado de usuarios, donde cada fila muestra el rol con su etiqueta legible, y en el endpoint de invitaciones. El estatus de cada cuenta se distingue en el mismo listado, con un badge «Activo» o «Inactivo». El resto de la interfaz está en desarrollo.
 
 ## Despliegue en Netlify
 
@@ -302,7 +337,9 @@ No subas el archivo `.env` al repositorio: las credenciales viajan siempre por l
 - RLS está activo en `public.usuarios` con políticas por tabla: un usuario autenticado solo puede leer su propio perfil, y `admin` o `supervisor` pueden leer los del equipo.
 - La clave secreta (`sb_secret_…`) solo se usa en `src/features/invitations/lib/supabase-admin.ts`, y ese módulo únicamente se importa desde rutas de API.
 - Las cookies de sesión son `httpOnly`, `sameSite=lax` y `secure` en producción; las peticiones se autorizan con `getClaims()`, nunca con `getSession()`.
-- Las rutas bajo `/dashboard` son las únicas protegidas.
+- Las rutas bajo `/dashboard` son las únicas que exigen sesión.
+- Las cuentas con estatus `inactivo` no pueden entrar ni usar la aplicación: el baneo de Supabase Auth impide el inicio de sesión y el middleware cierra la sesión y responde 403 en cualquier petición. La comprobación falla cerrada: si el estatus no se puede leer, la aplicación responde 503.
+- El inicio de sesión no revela si un correo existe: una contraseña incorrecta y una cuenta desactivada devuelven el mismo mensaje.
 
 ## Solución de problemas
 
@@ -313,6 +350,8 @@ No subas el archivo `.env` al repositorio: las credenciales viajan siempre por l
 | El correo de invitación no llega | Revisa `SMTP_*`, que la contraseña de aplicación siga vigente y el límite diario de Gmail; mira el log `[invitations] fallo SMTP:` en la salida del servidor. |
 | «Enlace no válido» al confirmar | El enlace caducó (1 hora) o ya se usó. Vuelve a invitar al mismo correo. |
 | `POST /api/invitations` devuelve 401 o 403 | Falta la sesión (401) o el usuario no tiene rol `admin` (403). |
+| El login dice «Correo o contraseña incorrectos» y la contraseña es correcta | La cuenta puede estar desactivada: el login no lo distingue por seguridad. Comprueba el estatus en `public.usuarios` o en el panel de Supabase. |
+| Una cuenta desactivada no puede volver a entrar | Reactívala con `update public.usuarios set estatus = 'activo' where email = '…'`; el trigger levanta el baneo de Supabase Auth. |
 | `email_exists` al invitar | El correo ya tiene cuenta: no se crea una segunda y la respuesta es genérica. |
 
 ## Desarrollo con specs
