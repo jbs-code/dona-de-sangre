@@ -13,6 +13,7 @@ El acceso a la aplicación está protegido: solo las cuentas creadas por el labo
 - Acceso de administración (`/dashboard/admin/users`), visible solo para el rol `admin` y protegido con un 403 en el servidor.
 - Listado de los usuarios registrados con búsqueda por nombre o correo, filtro por estatus y paginación de 10 por página, resuelto en el servidor (sin JavaScript).
 - Estatus de cada cuenta (`activo` / `inactivo`): una cuenta inactiva no puede iniciar sesión ni usar la aplicación, y el `admin` ve el estatus de cada persona en el listado.
+- Alta de usuarios desde el panel administrativo: el `admin` abre un modal con nombre, correo y rol, revisa los datos en un paso previo de confirmación y, al confirmar, se envía la invitación por correo.
 - Flujo de invitación: el administrador genera un enlace, la aplicación envía el correo, el invitado confirma su correo y define su propia contraseña.
 - Esquema de base de datos con tabla de perfiles, roles, estatus y políticas RLS por tabla.
 - Estructura del proyecto organizada por funcionalidad (`src/features/`) con componentes reutilizables.
@@ -21,8 +22,7 @@ El acceso a la aplicación está protegido: solo las cuentas creadas por el labo
 **Pendiente**
 
 - Formulario de captura de donadores (el objetivo principal del producto).
-- Gestión de usuarios dentro del panel: registrar, actualizar, eliminar y cambiar el estatus de las cuentas. El listado y el bloqueo de las cuentas inactivas ya están implementados; faltan la pantalla para cambiar el estatus y el resto de acciones.
-- Interfaz de las invitaciones (`POST /api/invitations` ya existe, falta la pantalla).
+- Gestión de usuarios dentro del panel: actualizar, cambiar el rol, desactivar y eliminar cuentas ya dadas de alta. El alta, el listado y el bloqueo de las cuentas inactivas ya están implementados; falta la pantalla de edición y el cambio de estatus desde la aplicación.
 - Recuperación de contraseña («¿Olvidaste tu contraseña?»).
 
 ## Stack tecnológico
@@ -133,9 +133,11 @@ No hay registro público: las cuentas las crea el laboratorio. La primera cuenta
 
 Con esa cuenta ya puedes entrar en `/dashboard` e invitar al resto del equipo.
 
-### 6. Probar la API de invitaciones
+### 6. Dar de alta a un usuario desde el panel
 
-Todavía no hay interfaz para las invitaciones, así que la invitación se hace por HTTP. Ejemplo desde la raíz del proyecto:
+Con una cuenta `admin` ya activa, entra en `/dashboard/admin/users` y pulsa **«Agregar usuario»**: se abre un modal con el nombre, el correo y el rol. Al pulsar «Revisar datos» se muestra un resumen de los tres datos y solo al confirmar («Enviar invitación») se envía el correo.
+
+También se puede hacer por HTTP (útil para automatizaciones). Ejemplo desde la raíz del proyecto:
 
 ```sh
 # 1. Iniciar sesión y guardar las cookies de sesión
@@ -145,10 +147,12 @@ curl -c cookies.txt -X POST http://localhost:4321/api/auth/login \
 # 2. Invitar a un nuevo usuario (solo admin)
 curl -b cookies.txt -X POST http://localhost:4321/api/invitations \
   -H 'Content-Type: application/json' \
-  -d '{"email":"nuevo@laboratorio.org"}'
+  -d '{"email":"nuevo@laboratorio.org","nombre":"Nueva Persona","rol":"capturador"}'
 ```
 
-La respuesta es `{"ok":true}` si el correo se envió. `401` indica que falta la sesión y `403` que el usuario no es `admin`.
+El cuerpo acepta `email` (obligatorio), `nombre` (opcional, 1–120 caracteres) y `rol` (opcional: `admin`, `supervisor` o `capturador`; por defecto `capturador`). Sin `nombre`, se usa la parte local del correo.
+
+La respuesta es `{"ok":true}` si el correo se envió. `400` indica que los datos no son válidos, `401` que falta la sesión, `403` que el usuario no es `admin` y `409` que el correo ya tiene cuenta.
 
 ## Configuración de Gmail (SMTP)
 
@@ -211,7 +215,7 @@ src/
 │   ├── current-user.ts                    # perfil del solicitante (nombre, correo, rol, estatus)
 │   ├── database.types.ts                  # tipos de Supabase generados desde el MCP
 │   ├── estatus.ts                         # tipo Estatus y mapa ESTATUS_INFO (etiqueta, clase del badge)
-│   ├── roles.ts                           # tipo Rol y mapa ROL_INFO (etiqueta, clase del badge)
+│   ├── roles.ts                           # tipo Rol, lista blanca ROL_VALUES y mapa ROL_INFO (etiqueta, clase del badge)
 │   └── supabase.ts                        # cliente de servidor (@supabase/ssr) con cookies
 ├── components/
 │   └── ui/                                # componentes usados por varias features
@@ -222,9 +226,9 @@ src/
 │   ├── auth/components/                   # AuthCard, FormField, PasswordInput
 │   ├── dashboard/components/              # AdminUsersShortcutCard
 │   ├── users/
-│   │   ├── components/                    # AdminUsersPanel, UsersSearchForm, UsersTable, UsersPagination
+│   │   ├── components/                    # AdminUsersPanel, UsersSearchForm, UsersTable, UsersPagination, UsersInviteModal
 │   │   └── lib/                           # users-list.ts (consulta, saneado y paginación)
-│   └── invitations/lib/                   # email.ts (nodemailer) y supabase-admin.ts
+│   └── invitations/lib/                   # invitations.ts (validación y alta), email.ts (nodemailer) y supabase-admin.ts
 └── pages/
     ├── cuenta-desactivada.astro           # 403 para una cuenta desactivada
     ├── dashboard/index.astro              # panel protegido
@@ -261,7 +265,7 @@ Reglas de organización:
 | ---- | ----------- |
 | `POST /api/auth/login` | Inicia sesión con correo y contraseña. |
 | `POST /api/auth/logout` | Cierra la sesión. |
-| `POST /api/invitations` | Solo para `admin`: genera el enlace de invitación y envía el correo. |
+| `POST /api/invitations` | Solo para `admin`: crea la persona invitada (nombre, correo y rol) y envía el correo de invitación. Cuerpo: `{ "email": "…", "nombre": "…", "rol": "…" }`, con `nombre` y `rol` opcionales. |
 
 El flujo de invitación es: **invitar → correo → confirmar el enlace → elegir contraseña → entrar al panel**.
 
@@ -276,6 +280,33 @@ La pantalla de administración resuelve la búsqueda, el filtro y la paginación
 - «Quitar filtros» borra a la vez el texto de búsqueda y el filtro de estatus.
 - El listado se lee con la sesión del solicitante, de modo que es RLS quien decide qué filas se ven. La clave secreta (`sb_secret_…`) no interviene.
 - Limitación conocida: `ILIKE` no ignora los acentos, así que buscar `jose` no encuentra a `José`.
+
+## Alta de usuarios desde el panel
+
+La pantalla de administración permite dar de alta a una persona del laboratorio sin salir del panel: el botón «Agregar usuario» abre un modal con **Nombre**, **Correo electrónico** y **Rol** («Capturador» por defecto).
+
+El flujo tiene tres pasos dentro del mismo modal:
+
+1. **Datos.** El formulario valida en el navegador (campo obligatorio, correo con formato y 120 caracteres como máximo). «Revisar datos» no envía nada: solo avanza al siguiente paso.
+2. **Confirmación.** Se muestran los tres datos tal y como se van a guardar, con las opciones de «Volver a editar» (conserva lo escrito) y «Enviar invitación». Hasta aquí no se escribe nada en la base de datos.
+3. **Resultado.** Si el envío va bien, un aviso verde confirma la invitación y el botón «Cerrar y ver el listado» recarga la página para que la persona aparezca en la tabla. Si falla, se muestra el error del servidor y se puede volver a editar.
+
+El botón y el modal solo se renderizan en la rama autorizada: un usuario que no es `admin` recibe un **403** y su HTML no contiene ni el botón ni el modal.
+
+Quién escribe cada campo:
+
+| Dato | Lo escribe | Cuándo |
+| ---- | ----------- | ------ |
+| `auth.users.email` | `auth.admin.generateLink` | Al generar el enlace de invitación. |
+| `public.usuarios.email` | El trigger `on_auth_user_created` | En cascada del `INSERT` en `auth.users`. |
+| `public.usuarios.nombre` | El servidor (`UPDATE`) | Después de generar el enlace. |
+| `public.usuarios.rol` | El servidor (`UPDATE`) | Después de generar el enlace. |
+
+El rol no se lee de los metadatos de la invitación, sino que lo decide el `admin` que llama a la API: el `UPDATE` usa la clave secreta (autoriza como `service_role` y no pasa por RLS) y escribe una sola vez el nombre y el rol confirmados en pantalla.
+
+- Si la escritura del perfil falla, el usuario recién creado **se borra** (`auth.admin.deleteUser`, que arrastra su fila de `public.usuarios`) y la respuesta es `500`: nunca queda una cuenta a medias que el `admin` no pueda arreglar desde la aplicación.
+- La persona **aparece en el listado aunque todavía no haya confirmado su correo**, porque la fila la crea el trigger al generarse el enlace. El listado no distingue entre «invitada» y «activa».
+- El correo saluda con el nombre de la persona («Hola, María, te hemos invitado a crear tu cuenta en Dona de Sangre»).
 
 ## Estatus de las cuentas
 
@@ -314,11 +345,11 @@ La tabla `public.usuarios` guarda el perfil de cada cuenta (nunca contraseñas) 
 
 | Rol | Permisos actuales |
 | --- | ----------------- |
-| `admin` | Acceso al panel, al área de administración de usuarios (`/dashboard/admin/users`) e invitaciones (`POST /api/invitations`). |
+| `admin` | Acceso al panel, al área de administración de usuarios (`/dashboard/admin/users`), al alta de usuarios desde esa pantalla e invitaciones (`POST /api/invitations`). |
 | `supervisor` | Acceso al panel; por RLS puede leer los perfiles del equipo. |
 | `capturador` | Acceso al panel y a su propio perfil. |
 
-Los roles se distinguen en la interfaz en el área de administración de usuarios (visible solo para `admin` y con un 403 en el servidor para el resto), en el listado de usuarios, donde cada fila muestra el rol con su etiqueta legible, y en el endpoint de invitaciones. El estatus de cada cuenta se distingue en el mismo listado, con un badge «Activo» o «Inactivo». El resto de la interfaz está en desarrollo.
+Los roles se distinguen en la interfaz en el área de administración de usuarios (visible solo para `admin` y con un 403 en el servidor para el resto), en el listado de usuarios, donde cada fila muestra el rol con su etiqueta legible, en el selector del modal de alta de usuarios y en el endpoint de invitaciones. El estatus de cada cuenta se distingue en el mismo listado, con un badge «Activo» o «Inactivo». El resto de la interfaz está en desarrollo.
 
 ## Despliegue en Netlify
 
@@ -353,6 +384,8 @@ No subas el archivo `.env` al repositorio: las credenciales viajan siempre por l
 | El login dice «Correo o contraseña incorrectos» y la contraseña es correcta | La cuenta puede estar desactivada: el login no lo distingue por seguridad. Comprueba el estatus en `public.usuarios` o en el panel de Supabase. |
 | Una cuenta desactivada no puede volver a entrar | Reactívala con `update public.usuarios set estatus = 'activo' where email = '…'`; el trigger levanta el baneo de Supabase Auth. |
 | `email_exists` al invitar | El correo ya tiene cuenta: no se crea una segunda y la respuesta es genérica. |
+| El modal de alta no se abre | Es la única parte del panel que necesita JavaScript: sin él, el `<dialog>` no se puede abrir. La búsqueda, el filtro y la paginación siguen funcionando. |
+| La invitación se envía pero la persona no aparece en la tabla | La fila se crea al generarse el enlace, no al confirmar el correo. Recarga el listado (botón «Cerrar y ver el listado» o `F5`). |
 
 ## Desarrollo con specs
 

@@ -10,6 +10,8 @@
 - Role checks live in page frontmatter, not in `src/middleware.ts`: the middleware only protects `/dashboard/*` by session and blocks deactivated accounts. `src/lib/current-user.ts` (`getCurrentUser`) is the single reader of the requester's row in `public.usuarios`; the middleware resolves it once per request and exposes it as `Astro.locals.currentUser`.
 - Deactivated accounts are blocked in two layers: a database trigger keeps `auth.users.banned_until` in sync with `public.usuarios.estatus` (so `signInWithPassword` fails), and the middleware closes the session and answers 403 on any request with a session whose status is `inactivo` (302 to `/cuenta-desactivada` for pages, JSON for `/api/*`, 503 if the status cannot be read). The status is not editable from the app yet: it is changed with an `UPDATE` in the Supabase dashboard.
 - The user listing reads `public.usuarios` with the requester's own session client (`Astro.locals.supabase`), so RLS does the filtering; the secret key stays out of it. The search term is sanitized before it reaches the PostgREST filter (`sanitizeSearchTerm` in `src/features/users/lib/users-list.ts`) and the status filter is a whitelist (`sanitizeEstatusFilter`).
+- The admin can create people from `/dashboard/admin/users`: a `<dialog class="modal">` (`src/features/users/components/UsersInviteModal.astro`) with three views (form → confirmation → result) that posts `{ nombre, email, rol }` to `POST /api/invitations`. The button and the modal are rendered only in the authorized branch of `AdminUsersPanel.astro` (`autorizado = !denied && result !== undefined`), so a non-admin gets a 403 and no button in the HTML.
+- `POST /api/invitations` accepts `email` (required) plus optional `nombre` (1–120 chars) and `rol` (whitelist `ROL_VALUES`); `src/features/invitations/lib/invitations.ts` owns `parseInviteInput()` and `createInvitedUser()`. The role is written by the server with the secret key (`service_role`, bypasses RLS), never read from the invite metadata: metadata can be written by whoever creates the user in Auth, while the role is an authorization decision. If that write fails, the just-created user is deleted (`auth.admin.deleteUser`, cascades to `public.usuarios`) so no half-created account is left behind. `ROL_VALUES` in `src/lib/roles.ts` is the single source of truth for the whitelist (server validation and the modal's `<select>`).
 
 ## Structure
 
@@ -22,7 +24,7 @@ src/
 │   ├── current-user.ts                    # requester's profile (nombre, email, rol, estatus) + getCurrentUser()
 │   ├── database.types.ts                  # Supabase types generated from the MCP
 │   ├── estatus.ts                         # Estatus type + ESTATUS_INFO map (label, badge class)
-│   ├── roles.ts                           # Rol type + ROL_INFO map (label, badge class)
+│   ├── roles.ts                           # Rol type + ROL_VALUES whitelist + ROL_INFO map (label, badge class)
 │   └── supabase.ts                        # @supabase/ssr server client factory
 ├── components/
 │   └── ui/                                # components used across features
@@ -43,13 +45,15 @@ src/
 │   │   │   ├── AdminUsersPanel.astro      # props denied?/result?: card that composes the three below
 │   │   │   ├── UsersSearchForm.astro      # GET form (q + estatus) + «Quitar filtros»
 │   │   │   ├── UsersTable.astro           # table (nombre, correo, rol, estatus) + empty states
-│   │   │   └── UsersPagination.astro      # daisyUI join of page links (keeps q + estatus)
+│   │   │   ├── UsersPagination.astro      # daisyUI join of page links (keeps q + estatus)
+│   │   │   └── UsersInviteModal.astro     # <dialog> modal: form → confirmation → result + its script
 │   │   └── lib/
 │   │       └── users-list.ts              # listUsers(), countUsers(), fetchUsersPage(),
 │   │                                      # sanitizeSearchTerm(), sanitizeEstatusFilter(), buildPageWindow()
 │   └── invitations/
 │       └── lib/
-│           ├── email.ts                   # nodemailer SMTP sender
+│           ├── invitations.ts              # parseInviteInput() + createInvitedUser() (compensating delete)
+│           ├── email.ts                   # nodemailer SMTP sender (greets by name, escapes the HTML)
 │           └── supabase-admin.ts          # admin client using SUPABASE_SECRET_API_KEY
 └── pages/
     ├── cuenta-desactivada.astro           # 403 for a deactivated account (exempt from the status check)
@@ -130,6 +134,8 @@ Unchanged rules, restated here so they are never lost during refactors:
 - `service_role`/secret keys only in server code: `SUPABASE_SECRET_API_KEY` is read by `src/features/invitations/lib/supabase-admin.ts` from API routes, never from pages or client scripts.
 - The deactivated-account check fails closed: if the status cannot be read, the middleware answers 503 instead of letting the request through.
 - The login endpoint never reveals whether an account exists: `POST /api/auth/login` answers the same generic error for a wrong password and for a banned account.
+- The invitation endpoint never reveals whether an account exists either: `POST /api/invitations` answers a generic 409 for an already-registered email.
+- The role of an invited person is decided by the server from the request body, never from the invite metadata (see Project above): only the `admin` that calls the API can choose it.
 
 ## Email (SMTP)
 
@@ -137,6 +143,7 @@ Unchanged rules, restated here so they are never lost during refactors:
 - Gmail allows about 500 emails per day (fewer on new accounts) — enough for the lab. Migrate to another SMTP (Resend, SendGrid…) if the volume grows.
 - If the Google app password is revoked or expires, sends fail: the error is logged on the server and `POST /api/invitations` answers a generic message. To rotate it, generate a new app password and update `SMTP_PASS`.
 - Never use Supabase Dashboard's «Invite user» button: it would send a second email from Supabase. The app calls `auth.admin.generateLink` (returns `hashed_token` and sends nothing) and mails the link itself.
+- The invitation email greets the invited person by name (`sendInviteEmail` takes `nombre`); the HTML part escapes the name, the email and the link before interpolating them.
 - `SUPABASE_SECRET_API_KEY` (the `sb_secret_...` key, the current replacement for `service_role`) is server-only: read by `src/features/invitations/lib/supabase-admin.ts` from API routes. It must never appear in client code, in the served HTML/JS, or in `dist/`.
 
 ## Spec workflow
@@ -146,7 +153,7 @@ Unchanged rules, restated here so they are never lost during refactors:
 - `/spec-impl` executes the implementation plan **one numbered step at a time**: implement exactly one step, summarize the files touched and show the diff, then **stop and wait for human review**. Never chain several steps in one go; continue only after the user explicitly confirms (`yes`, `go`, equivalent). If there are no steps left, say so and stop.
 - Never commit automatically, per step or at the end; only when the user explicitly asks. Only a human moves a spec to `Approved` and to `Implemented`. `/spec-impl` creates/switches to branch `spec-NN-slug` before implementing.
 - `spec-verifier` only verifies and edits files under `specs/**`; it must not change app code or the spec's status.
-- `specs/` holds `specs/01-login.md`, `specs/02-auth-supabase.md`, `specs/03-invitacion-confirmacion.md` and `specs/04-toggle-visibilidad-contrasena.md` (all `Implementado`), plus `specs/05-refactor-fdd-componentes.md` and `specs/06-admin-usuarios.md`. New specs follow `specs/NN-slug.md`.
+- `specs/` holds `specs/01-login.md`, `specs/02-auth-supabase.md`, `specs/03-invitacion-confirmacion.md` and `specs/04-toggle-visibilidad-contrasena.md` (all `Implementado`), plus `specs/05-refactor-fdd-componentes.md`, `specs/06-admin-usuarios.md`, `specs/07-listado-usuarios.md`, `specs/08-estatus-usuarios.md` and `specs/09-alta-usuario-desde-panel.md`. New specs follow `specs/NN-slug.md`.
 - `spec-verifier` uses `npx astro dev *`, `npm run build`, `npx tsc --noEmit` (never `astro check`), read-only git, read-only `curl`, Playwright, Context7, Astro Docs and the Supabase MCP. Its Supabase access is read-only: no migrations, branches, Edge Functions or DML/DDL. It must ask before mutating real state (invitations, real `POST`s).
 
 ## References

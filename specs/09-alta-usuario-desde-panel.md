@@ -1,6 +1,6 @@
 # SPEC 09 — Alta de usuario desde el panel administrativo
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 03, SPEC 06, SPEC 07, SPEC 08
 > **Fecha:** 2026-11-12
 > **Objetivo:** Permitir que un `admin` dé de alta a una persona del laboratorio desde `/dashboard/admin/users`: un modal con nombre, correo y rol, un paso previo de confirmación de los datos y el envío de la invitación por correo reutilizando el procedimiento ya implementado (`POST /api/invitations`).
@@ -200,28 +200,28 @@ src/
 
 ## Criterios de aceptación
 
-- [ ] `npm run build` termina correctamente (solo los avisos no fatales `Invalid empty selector` de daisyUI).
-- [ ] `npx tsc --noEmit` no reporta errores.
-- [ ] `npm run check` (`astro check`) no reporta errores en los `.astro`.
-- [ ] Con sesión de `admin`, `/dashboard/admin/users` muestra un botón «Agregar usuario».
-- [ ] Con sesión de un usuario que no es `admin`, la página responde 403 y su HTML no contiene el botón «Agregar usuario» ni el modal.
-- [ ] El botón abre un modal (elemento `<dialog class="modal">`) con un formulario de tres campos: Nombre, Correo electrónico y Rol.
-- [ ] El selector de rol ofrece exactamente las tres etiquetas de `ROL_INFO` y preselecciona «Capturador».
-- [ ] Un correo vacío o con formato inválido no deja avanzar al paso de confirmación (validación del navegador).
-- [ ] «Revisar datos» no envía ninguna petición: al pulsarlo aparece el resumen con el nombre, el correo y el rol introducidos.
-- [ ] «Volver a editar» devuelve al formulario con los valores conservados.
-- [ ] «Enviar invitación» envía `POST /api/invitations` con `{ nombre, email, rol }` y, con éxito, muestra un aviso de éxito y recarga el listado.
-- [ ] Con un correo que ya tiene cuenta, el modal muestra el mensaje genérico del servidor y no crea nada.
-- [ ] Con un error del servidor (por ejemplo, 500), el modal muestra el error y permite volver a editar.
-- [ ] `POST /api/invitations` responde `400` con un `nombre` de más de 120 caracteres o con un `rol` fuera de la lista blanca.
-- [ ] `POST /api/invitations` sigue respondiendo `401` sin sesión y `403` con una sesión que no es de `admin`.
-- [ ] `POST /api/invitations` con `{"email":"…"}` (sin `nombre` ni `rol`) sigue funcionando como antes.
-- [ ] El usuario creado tiene en `public.usuarios` el `nombre` y el `rol` que se confirmaron en pantalla.
-- [ ] Si la escritura del perfil falla, no queda ninguna fila en `public.usuarios` con ese correo (borrado compensatorio).
-- [ ] El correo de invitación saluda por el nombre de la persona.
-- [ ] A 320 px no hay scroll horizontal en `/dashboard/admin/users` ni con el modal abierto.
-- [ ] No hay errores de consola en `/dashboard/admin/users` al abrir y usar el modal.
-- [ ] `README.md` y `AGENTS.md` reflejan la nueva pantalla de alta, el payload ampliado de la API y el árbol final de `src/`.
+- [x] `npm run build` termina correctamente (solo los avisos no fatales `Invalid empty selector` de daisyUI).
+- [x] `npx tsc --noEmit` no reporta errores.
+- [x] `npm run check` (`astro check`) no reporta errores en los `.astro`.
+- [x] Con sesión de `admin`, `/dashboard/admin/users` muestra un botón «Agregar usuario».
+- [x] Con sesión de un usuario que no es `admin`, la página responde 403 y su HTML no contiene el botón «Agregar usuario» ni el modal.
+- [x] El botón abre un modal (elemento `<dialog class="modal">`) con un formulario de tres campos: Nombre, Correo electrónico y Rol.
+- [x] El selector de rol ofrece exactamente las tres etiquetas de `ROL_INFO` y preselecciona «Capturador».
+- [x] Un correo vacío o con formato inválido no deja avanzar al paso de confirmación (validación del navegador).
+- [x] «Revisar datos» no envía ninguna petición: al pulsarlo aparece el resumen con el nombre, el correo y el rol introducidos.
+- [x] «Volver a editar» devuelve al formulario con los valores conservados.
+- [x] «Enviar invitación» envía `POST /api/invitations` con `{ nombre, email, rol }` y, con éxito, muestra un aviso de éxito y recarga el listado.
+- [x] Con un correo que ya tiene cuenta, el modal muestra el mensaje genérico del servidor y no crea nada.
+- [x] Con un error del servidor (por ejemplo, 500), el modal muestra el error y permite volver a editar.
+- [x] `POST /api/invitations` responde `400` con un `nombre` de más de 120 caracteres o con un `rol` fuera de la lista blanca.
+- [x] `POST /api/invitations` sigue respondiendo `401` sin sesión y `403` con una sesión que no es de `admin`.
+- [x] `POST /api/invitations` con `{"email":"…"}` (sin `nombre` ni `rol`) sigue funcionando como antes.
+- [x] El usuario creado tiene en `public.usuarios` el `nombre` y el `rol` que se confirmaron en pantalla.
+- [x] Si la escritura del perfil falla, no queda ninguna fila en `public.usuarios` con ese correo (borrado compensatorio).
+- [x] El correo de invitación saluda por el nombre de la persona.
+- [x] A 320 px no hay scroll horizontal en `/dashboard/admin/users` ni con el modal abierto.
+- [x] No hay errores de consola en `/dashboard/admin/users` al abrir y usar el modal.
+- [x] `README.md` y `AGENTS.md` reflejan la nueva pantalla de alta, el payload ampliado de la API y el árbol final de `src/`.
 
 ## Decisiones tomadas y descartadas
 
@@ -270,27 +270,27 @@ src/
 
 ## Verificación
 
-> **Pendiente de ejecutar tras la implementación.** La prueba de extremo a extremo requiere un correo real: el usuario indica el correo, el agente crea la cuenta con el rol elegido y el usuario acepta la invitación.
+> Ejecutada tras la implementación. La prueba de extremo a extremo se hizo con el correo `jimmyraq@gmail.com` (rol `capturador`): el alta se hizo desde el modal, la persona aparece en `public.usuarios` con el nombre y el rol confirmados y el usuario confirmó que el correo llegó saludando por su nombre.
 
 | Criterio | Estado | Evidencia | Notas |
 | --- | --- | --- | --- |
-| `npm run build` termina correctamente | ⏳ | — | — |
-| `npx tsc --noEmit` no reporta errores | ⏳ | — | — |
-| `npm run check` no reporta errores | ⏳ | — | — |
-| El botón «Agregar usuario» aparece para el `admin` | ⏳ | — | — |
-| Un no-`admin` recibe 403 y no ve el botón | ⏳ | — | — |
-| El modal abre con sus tres campos | ⏳ | — | — |
-| La validación nativa bloquea los datos incompletos | ⏳ | — | — |
-| El resumen de confirmación muestra los tres datos | ⏳ | — | — |
-| «Revisar datos» no envía ninguna petición | ⏳ | — | — |
-| El alta correcta muestra el aviso de éxito y recarga el listado | ⏳ | — | — |
-| Un correo duplicado muestra el mensaje genérico | ⏳ | — | — |
-| La API responde 400 con `nombre` largo o `rol` inválido | ⏳ | — | — |
-| La API sigue respondiendo 401 y 403 | ⏳ | — | — |
-| El payload antiguo (`{"email":"…"}`) sigue funcionando | ⏳ | — | — |
-| El perfil creado tiene el `nombre` y el `rol` confirmados | ⏳ | — | — |
-| El borrado compensatorio no deja filas huérfanas | ⏳ | — | — |
-| El correo saluda por el nombre | ⏳ | — | — |
-| Sin scroll horizontal a 320 px | ⏳ | — | — |
-| Sin errores de consola | ⏳ | — | — |
-| `README.md` y `AGENTS.md` al día | ⏳ | — | — |
+| `npm run build` termina correctamente | ✅ | `Complete!`, solo los avisos `Invalid empty selector` de daisyUI | — |
+| `npx tsc --noEmit` no reporta errores | ✅ | salida vacía | — |
+| `npm run check` no reporta errores | ✅ | 0 errores, 0 avisos, 0 hints | — |
+| El botón «Agregar usuario» aparece para el `admin` | ✅ | Playwright: `button "Agregar usuario"` en el snapshot de `/dashboard/admin/users` | Sesión de `jaime@google.com` (admin) |
+| Un no-`admin` recibe 403 y no ve el botón | ✅ | `GET /dashboard/admin/users => 403`; el HTML no contiene `Agregar usuario` ni `users-invite-modal`; muestra «Acceso denegado» | Sesión de `charly@google.com` (supervisor) |
+| El modal abre con sus tres campos | ✅ | `<dialog class="modal">` con Nombre, Correo electrónico y Rol | — |
+| La validación nativa bloquea los datos incompletos | ✅ | con el formulario vacío, `email.validity.valid === false` y la vista de confirmación sigue oculta; igual con un correo sin formato | Validación HTML5, sin peticiones |
+| El resumen de confirmación muestra los tres datos | ✅ | «Marta Prueba» / «marta.prueba@ejemplo.com» / «Supervisor» | — |
+| «Revisar datos» no envía ninguna petición | ✅ | 0 peticiones a `/api/` tras pulsar el botón; la primera `/api/invitations` aparece al pulsar «Enviar invitación» | — |
+| El alta correcta muestra el aviso de éxito y recarga el listado | ✅ | `alert alert-success` con «Invitación enviada a jimmyraq@gmail.com»; tras «Cerrar y ver el listado» la tabla muestra «Jimmy Raq … Capturador Activo» (4 de 4) | — |
+| Un correo duplicado muestra el mensaje genérico | ✅ | `POST /api/invitations => 409`; el modal muestra `alert alert-error` con «No se pudo generar la invitación.» | No se creó nada |
+| La API responde 400 con `nombre` largo o `rol` inválido | ✅ | 121 caracteres → «El nombre no puede superar los 120 caracteres.»; `rol: "superadmin"` o `42` → «Rol no válido.»; correo inválido → «Correo electrónico no válido.» | — |
+| La API sigue respondiendo 401 y 403 | ✅ | sin sesión → 401 «No autorizado.»; con sesión de supervisor → 403 «Se requiere rol de administrador.» | — |
+| El payload antiguo (`{"email":"…"}`) sigue funcionando | ✅ | `200`; la fila queda con `nombre = "payload.antiguo"` (parte local) y `rol = "capturador"` | Persona de prueba borrada después |
+| El perfil creado tiene el `nombre` y el `rol` confirmados | ✅ | `public.usuarios`: `nombre = "Jimmy Raq"`, `rol = capturador`; y en la prueba de UI, `nombre = "Ana Prueba UI"`, `rol = admin` | — |
+| El borrado compensatorio no deja filas huérfanas | ✅ | forzando un fallo del `UPDATE` (nombre de 200 caracteres, viola el `check`): `500` y **0** filas en `public.usuarios` **y 0** en `auth.users` para ese correo | Log del servidor: `[invitations] no se pudo guardar el perfil:` |
+| El correo saluda por el nombre | ✅ | correo recibido en `jimmyraq@gmail.com` con el saludo «Hola, Jimmy Raq, te hemos invitado a crear tu cuenta en Dona de Sangre» (confirmado por el usuario); `sendInviteEmail` genera ese texto y escapa nombre, correo y URL en la parte HTML | — |
+| Sin scroll horizontal a 320 px | ✅ | `documentElement.scrollWidth (305) <= innerWidth (320)` con la página y con el modal abierto; la `modal-box` mide 279 px y no tiene scroll propio | — |
+| Sin errores de consola | ✅ | 0 errores de JavaScript al abrir y usar el modal; los únicos mensajes son «Failed to load resource» del navegador en las respuestas 4xx/5xx probadas | Inherente al código de estado de la API |
+| `README.md` y `AGENTS.md` al día | ✅ | nueva sección «Alta de usuarios desde el panel», estado del proyecto, API, rutas y árbol de `src/` actualizados | — |
