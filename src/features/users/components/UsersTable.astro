@@ -1,22 +1,27 @@
 ---
+import { ESTATUS_INFO } from '../../../lib/estatus'
+import type { Estatus } from '../../../lib/estatus'
 import { ROL_INFO } from '../../../lib/roles'
 import type { UsuarioListItem } from '../lib/users-list'
 
 interface Props {
 	usuarios: UsuarioListItem[]
 	search: string
+	estatus: Estatus | null
 }
 
-const { usuarios, search } = Astro.props
+const { usuarios, search, estatus } = Astro.props
+
+const emptyMessage = search
+	? `No se encontraron usuarios que coincidan con «${search}».`
+	: estatus
+		? `No se encontraron usuarios con el estatus «${ESTATUS_INFO[estatus].label}».`
+		: 'Todavía no hay usuarios registrados.'
 ---
 
 {
 	usuarios.length === 0 ? (
-		<p class="py-6 text-center text-base-content/70">
-			{search
-				? `No se encontraron usuarios que coincidan con «${search}».`
-				: 'Todavía no hay usuarios registrados.'}
-		</p>
+		<p class="py-6 text-center text-base-content/70">{emptyMessage}</p>
 	) : (
 		<div class="overflow-x-auto">
 			<table class="table">
@@ -28,6 +33,7 @@ const { usuarios, search } = Astro.props
 						<th>Nombre</th>
 						<th>Correo</th>
 						<th>Rol</th>
+						<th>Estatus</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -38,6 +44,11 @@ const { usuarios, search } = Astro.props
 							<td>
 								<span class={`badge ${ROL_INFO[usuario.rol].className}`}>
 									{ROL_INFO[usuario.rol].label}
+								</span>
+							</td>
+							<td>
+								<span class={`badge ${ESTATUS_INFO[usuario.estatus].className}`}>
+									{ESTATUS_INFO[usuario.estatus].label}
 								</span>
 							</td>
 						</tr>

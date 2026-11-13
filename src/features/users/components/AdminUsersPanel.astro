@@ -27,9 +27,9 @@ const hasta = result ? desde + result.usuarios.length - 1 : 0
 				</AlertError>
 			) : result ? (
 				<>
-					<UsersSearchForm search={result.search} />
+					<UsersSearchForm search={result.search} estatus={result.estatus} />
 
-					<UsersTable usuarios={result.usuarios} search={result.search} />
+					<UsersTable usuarios={result.usuarios} search={result.search} estatus={result.estatus} />
 
 					{result.usuarios.length > 0 && (
 						<p class="text-sm text-base-content/60">
@@ -41,6 +41,7 @@ const hasta = result ? desde + result.usuarios.length - 1 : 0
 						page={result.page}
 						totalPages={result.totalPages}
 						search={result.search}
+						estatus={result.estatus}
 					/>
 				</>
 			) : null

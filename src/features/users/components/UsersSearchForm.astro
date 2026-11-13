@@ -1,9 +1,12 @@
 ---
+import type { Estatus } from '../../../lib/estatus'
+
 interface Props {
 	search: string
+	estatus: Estatus | null
 }
 
-const { search } = Astro.props
+const { search, estatus } = Astro.props
 ---
 
 <form method="get" action="/dashboard/admin/users" class="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -19,8 +22,17 @@ const { search } = Astro.props
 		/>
 	</fieldset>
 
+	<fieldset class="fieldset min-w-0">
+		<label class="label" for="users-estatus">Filtrar por estatus</label>
+		<select id="users-estatus" name="estatus" class="select w-full">
+			<option value="" selected={!estatus}>Todos</option>
+			<option value="activo" selected={estatus === 'activo'}>Activos</option>
+			<option value="inactivo" selected={estatus === 'inactivo'}>Inactivos</option>
+		</select>
+	</fieldset>
+
 	<div class="flex gap-2 mb-1">
 		<button type="submit" class="btn btn-primary">Buscar</button>
-		{search && <a href="/dashboard/admin/users" class="btn btn-ghost">Quitar filtro</a>}
+		{(search || estatus) && <a href="/dashboard/admin/users" class="btn btn-ghost">Quitar filtros</a>}
 	</div>
 </form>

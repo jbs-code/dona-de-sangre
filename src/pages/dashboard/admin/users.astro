@@ -23,7 +23,8 @@ if (!isAdmin) {
 const result = isAdmin
 	? await listUsers(Astro.locals.supabase, {
 			search: Astro.url.searchParams.get('q') ?? '',
-			page: Number(Astro.url.searchParams.get('page') ?? '1')
+			page: Number(Astro.url.searchParams.get('page') ?? '1'),
+			estatus: Astro.url.searchParams.get('estatus') ?? ''
 		})
 	: undefined
 ---

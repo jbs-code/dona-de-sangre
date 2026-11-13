@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../../lib/database.types';
+import type { Estatus } from '../../../lib/estatus';
 import type { Rol } from '../../../lib/roles';
 
 export const USERS_PER_PAGE = 10;
@@ -7,12 +8,14 @@ export const USERS_PER_PAGE = 10;
 const MAX_SEARCH_LENGTH = 100;
 const PAGE_WINDOW_SIZE = 5;
 const DISALLOWED_SEARCH_CHARS = /[^\p{L}\p{N} @.\-_]/gu;
+const ESTATUS_VALUES: Estatus[] = ['activo', 'inactivo'];
 
 export type UsuarioListItem = {
   id: string;
   nombre: string;
   email: string;
   rol: Rol;
+  estatus: Estatus;
 };
 
 export type UsersListResult = {
@@ -21,6 +24,7 @@ export type UsersListResult = {
   page: number;
   totalPages: number;
   search: string;
+  estatus: Estatus | null;
 };
 
 /**
@@ -45,6 +49,16 @@ function buildSearchFilter(search: string): string | null {
   }
 
   return `nombre.ilike.*${search}*,email.ilike.*${search}*`;
+}
+
+/**
+ * Filtro de estatus: lista blanca. Cualquier valor que no sea `activo` o
+ * `inactivo` se trata como «Todos».
+ */
+export function sanitizeEstatusFilter(raw: string): Estatus | null {
+  const value = raw.trim().toLowerCase();
+
+  return ESTATUS_VALUES.find((estatus) => estatus === value) ?? null;
 }
 
 /** Número de páginas que se muestran como enlaces, centrado en la actual. */
@@ -74,9 +88,15 @@ function clampPage(page: number, totalPages: number): number {
 /** Total de filas visibles por RLS. `search` debe venir ya saneado. */
 export async function countUsers(
   supabase: SupabaseClient<Database>,
-  search: string
+  search: string,
+  estatus: Estatus | null
 ): Promise<number> {
-  const query = supabase.from('usuarios').select('id', { count: 'exact', head: true });
+  let query = supabase.from('usuarios').select('id', { count: 'exact', head: true });
+
+  if (estatus) {
+    query = query.eq('estatus', estatus);
+  }
+
   const filter = buildSearchFilter(search);
   const { count, error } = filter ? await query.or(filter) : await query;
 
@@ -95,21 +115,27 @@ export async function fetchUsersPage(
   supabase: SupabaseClient<Database>,
   search: string,
   page: number,
-  totalPages: number
+  totalPages: number,
+  estatus: Estatus | null
 ): Promise<UsuarioListItem[]> {
   const currentPage = clampPage(page, totalPages);
   const from = (currentPage - 1) * USERS_PER_PAGE;
   const to = from + USERS_PER_PAGE - 1;
 
-  const query = supabase
+  let query = supabase
     .from('usuarios')
-    .select('id, nombre, email, rol')
+    .select('id, nombre, email, rol, estatus')
     .order('nombre', { ascending: true })
-    .order('email', { ascending: true })
-    .range(from, to);
+    .order('email', { ascending: true });
+
+  if (estatus) {
+    query = query.eq('estatus', estatus);
+  }
 
   const filter = buildSearchFilter(search);
-  const { data, error } = filter ? await query.or(filter) : await query;
+  const { data, error } = filter
+    ? await query.or(filter).range(from, to)
+    : await query.range(from, to);
 
   if (error) {
     throw new Error(`No se pudo cargar la página de usuarios: ${error.message}`);
@@ -121,13 +147,14 @@ export async function fetchUsersPage(
 /** Listado paginado y filtrado. Devuelve el término saneado que se está usando. */
 export async function listUsers(
   supabase: SupabaseClient<Database>,
-  options: { search?: string; page?: number }
+  options: { search?: string; page?: number; estatus?: string }
 ): Promise<UsersListResult> {
   const search = sanitizeSearchTerm(options.search ?? '');
-  const total = await countUsers(supabase, search);
+  const estatus = sanitizeEstatusFilter(options.estatus ?? '');
+  const total = await countUsers(supabase, search, estatus);
   const totalPages = Math.max(1, Math.ceil(total / USERS_PER_PAGE));
   const page = clampPage(options.page ?? 1, totalPages);
-  const usuarios = await fetchUsersPage(supabase, search, page, totalPages);
+  const usuarios = await fetchUsersPage(supabase, search, page, totalPages, estatus);
 
-  return { usuarios, total, page, totalPages, search };
+  return { usuarios, total, page, totalPages, search, estatus };
 }

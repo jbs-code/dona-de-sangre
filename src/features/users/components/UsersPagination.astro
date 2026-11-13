@@ -1,19 +1,25 @@
 ---
+import type { Estatus } from '../../../lib/estatus'
 import { buildPageWindow } from '../lib/users-list'
 
 interface Props {
 	page: number
 	totalPages: number
 	search: string
+	estatus: Estatus | null
 }
 
-const { page, totalPages, search } = Astro.props
+const { page, totalPages, search, estatus } = Astro.props
 
 const pageUrl = (target: number) => {
 	const params = new URLSearchParams()
 
 	if (search) {
 		params.set('q', search)
+	}
+
+	if (estatus) {
+		params.set('estatus', estatus)
 	}
 
 	params.set('page', String(target))
