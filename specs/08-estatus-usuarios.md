@@ -1,6 +1,6 @@
 # SPEC 08 — Estatus de usuario y bloqueo de cuentas inactivas
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 02, SPEC 07
 > **Fecha:** 2026-11-12
 > **Objetivo:** Añadir el enum `estatus_usuario` a `public.usuarios` con los valores `activo` e `inactivo`, impedir que una cuenta inactiva inicie sesión o use la aplicación, y mostrar su estatus en el listado de `/dashboard/admin/users`.
@@ -241,35 +241,35 @@ src/
 
 ## Criterios de aceptación
 
-- [ ] `npm run build` termina correctamente (solo los avisos no fatales `Invalid empty selector` de daisyUI).
-- [ ] `npx tsc --noEmit` no reporta errores.
-- [ ] `npm run check` (`astro check`) no reporta errores en los `.astro`.
-- [ ] Existe el enum `public.estatus_usuario` con los valores `activo` e `inactivo`.
-- [ ] `public.usuarios.estatus` es `not null` con default `activo`.
-- [ ] Todas las filas existentes quedan en `activo` tras aplicar la migración.
-- [ ] Un usuario nuevo creado por el trigger de SPEC 02 nace en `activo`.
-- [ ] La migración está versionada en `supabase/migrations/`.
-- [ ] `src/lib/database.types.ts` incluye el enum `estatus_usuario` y la columna `estatus`.
-- [ ] Al poner `estatus = 'inactivo'`, `auth.users.banned_until` de ese usuario queda en el futuro.
-- [ ] Al volver a `estatus = 'activo'`, `auth.users.banned_until` de ese usuario queda en `null`.
-- [ ] Un usuario con estatus `inactivo` no puede iniciar sesión: el login responde con el mensaje genérico «Correo o contraseña incorrectos» y no se crea sesión.
-- [ ] Un usuario con estatus `inactivo` que ya tiene sesión recibe 403 y su sesión queda cerrada (las cookies de sesión se borran).
-- [ ] La respuesta 403 de una página muestra «Tu cuenta está desactivada. Contacta con el administrador.» y un enlace al inicio de sesión.
-- [ ] Una ruta `/api/*` con sesión inactiva responde 403 en JSON, no HTML.
-- [ ] Un usuario con estatus `activo` entra y usa `/dashboard` con normalidad: el comportamiento no cambia.
-- [ ] La autorización por rol no cambia: un usuario que no es `admin` sigue recibiendo 403 en `/dashboard/admin/users` y sin sesión sigue recibiendo 302 al login.
-- [ ] `/dashboard/admin/users` muestra una columna «Estatus» con badge «Activo» o «Inactivo» en cada fila.
-- [ ] El selector «Filtrar por estatus» filtra la tabla con `?estatus=activo` y con `?estatus=inactivo`.
-- [ ] `?estatus` con un valor no válido equivale a «Todos».
-- [ ] El filtro de estatus se combina con la búsqueda por nombre o correo.
-- [ ] La paginación conserva el filtro de estatus al cambiar de página.
-- [ ] Enviar el formulario de búsqueda o el selector de estatus vuelve a la página 1.
-- [ ] «Quitar filtros» borra a la vez el texto de búsqueda y el filtro de estatus.
-- [ ] El total que muestra el contador («Mostrando X–Y de Z usuarios») corresponde a las filas del filtro aplicado.
-- [ ] La tabla no contiene ningún botón ni enlace de acción sobre un usuario.
-- [ ] A 320 px no hay scroll horizontal en `/dashboard/admin/users`.
-- [ ] No hay errores de consola en `/dashboard/admin/users`.
-- [ ] `README.md` y `AGENTS.md` reflejan la nueva columna, el bloqueo de cuentas inactivas y el árbol final de `src/`.
+- [x] `npm run build` termina correctamente (solo los avisos no fatales `Invalid empty selector` de daisyUI).
+- [x] `npx tsc --noEmit` no reporta errores.
+- [x] `npm run check` (`astro check`) no reporta errores en los `.astro`.
+- [x] Existe el enum `public.estatus_usuario` con los valores `activo` e `inactivo`.
+- [x] `public.usuarios.estatus` es `not null` con default `activo`.
+- [x] Todas las filas existentes quedan en `activo` tras aplicar la migración.
+- [x] Un usuario nuevo creado por el trigger de SPEC 02 nace en `activo`.
+- [x] La migración está versionada en `supabase/migrations/`.
+- [x] `src/lib/database.types.ts` incluye el enum `estatus_usuario` y la columna `estatus`.
+- [x] Al poner `estatus = 'inactivo'`, `auth.users.banned_until` de ese usuario queda en el futuro.
+- [x] Al volver a `estatus = 'activo'`, `auth.users.banned_until` de ese usuario queda en `null`.
+- [x] Un usuario con estatus `inactivo` no puede iniciar sesión: el login responde con el mensaje genérico «Correo o contraseña incorrectos» y no se crea sesión.
+- [x] Un usuario con estatus `inactivo` que ya tiene sesión recibe 403 y su sesión queda cerrada (las cookies de sesión se borran).
+- [x] La respuesta 403 de una página muestra «Tu cuenta está desactivada. Contacta con el administrador.» y un enlace al inicio de sesión.
+- [x] Una ruta `/api/*` con sesión inactiva responde 403 en JSON, no HTML.
+- [x] Un usuario con estatus `activo` entra y usa `/dashboard` con normalidad: el comportamiento no cambia.
+- [x] La autorización por rol no cambia: un usuario que no es `admin` sigue recibiendo 403 en `/dashboard/admin/users` y sin sesión sigue recibiendo 302 al login.
+- [x] `/dashboard/admin/users` muestra una columna «Estatus» con badge «Activo» o «Inactivo» en cada fila.
+- [x] El selector «Filtrar por estatus» filtra la tabla con `?estatus=activo` y con `?estatus=inactivo`.
+- [x] `?estatus` con un valor no válido equivale a «Todos».
+- [x] El filtro de estatus se combina con la búsqueda por nombre o correo.
+- [x] La paginación conserva el filtro de estatus al cambiar de página.
+- [x] Enviar el formulario de búsqueda o el selector de estatus vuelve a la página 1.
+- [x] «Quitar filtros» borra a la vez el texto de búsqueda y el filtro de estatus.
+- [x] El total que muestra el contador («Mostrando X–Y de Z usuarios») corresponde a las filas del filtro aplicado.
+- [x] La tabla no contiene ningún botón ni enlace de acción sobre un usuario.
+- [x] A 320 px no hay scroll horizontal en `/dashboard/admin/users`.
+- [x] No hay errores de consola en `/dashboard/admin/users`.
+- [x] `README.md` y `AGENTS.md` reflejan la nueva columna, el bloqueo de cuentas inactivas y el árbol final de `src/`.
 
 ## Decisiones tomadas y descartadas
 
@@ -330,4 +330,52 @@ src/
 
 ## Verificación
 
-> Pendiente de ejecutar tras la implementación. Se anotará aquí el resultado de cada criterio, con la evidencia (build, `tsc`, `astro check`, `curl`, Playwright y la marca y restauración de una cuenta real).
+> **Ejecutada tras la implementación (2026-11-12).** Sesiones obtenidas con `auth.admin.generateLink` + `verifyOtp` (no envía correo). Para probar el bloqueo se crearon 13 usuarios temporales (1 para el login y 12 para forzar la paginación), se marcaron como `inactivo`, se restauraron y se borraron al final: la base de datos queda con sus 3 usuarios reales, todos en `activo` y sin baneo.
+
+| Criterio | Estado | Evidencia | Notas |
+| --- | --- | --- | --- |
+| `npm run build` termina correctamente | ✅ | `npm run build` → `Complete!` | Solo los 2 avisos no fatales `Invalid empty selector` de daisyUI |
+| `npx tsc --noEmit` no reporta errores | ✅ | Sin salida, código 0 | — |
+| `npm run check` no reporta errores | ✅ | `Result (32 files): 0 errors, 0 warnings, 0 hints` | — |
+| Existe el enum `public.estatus_usuario` | ✅ | `pg_enum`: `estatus_usuario` → `activo`, `inactivo` | — |
+| `public.usuarios.estatus` es `not null` con default `activo` | ✅ | `information_schema.columns`: `is_nullable = NO`, `column_default = 'activo'::estatus_usuario` | — |
+| Las filas existentes quedan en `activo` | ✅ | Las 3 filas previas a la migración (`charly`, `jaime`, `luis`) están en `activo` | — |
+| Un usuario nuevo nace en `activo` | ✅ | 13 usuarios creados con `auth.admin.createUser`: las 13 filas de `public.usuarios` nacieron en `activo` | El trigger `private.handle_new_user()` no nombra la columna y hereda el default |
+| La migración está versionada | ✅ | `supabase/migrations/20261112185401_add_estatus_usuario.sql` | — |
+| `database.types.ts` incluye el enum y la columna | ✅ | `Enums.estatus_usuario: "activo" \| "inactivo"` y `estatus` en `Row`/`Insert`/`Update` | — |
+| `inactivo` deja `banned_until` en el futuro | ✅ | `UPDATE public.usuarios SET estatus = 'inactivo'` → `auth.users.banned_until = 2126-11-13T02:13:18Z` (+100 años) | El trigger `security definer` con `search_path = ''` escribe sin error |
+| `activo` deja `banned_until` en `null` | ✅ | Tras `UPDATE ... SET estatus = 'activo'`: `banned_until = null` | El mismo `UPDATE` restauró el acceso: el login volvió a funcionar |
+| Una cuenta inactiva no puede iniciar sesión | ✅ | `POST /api/auth/login` con la contraseña correcta de la cuenta desactivada → 302 a `/auth/login?error=invalid_credentials`, **sin `Set-Cookie`** | La página muestra «Correo o contraseña incorrectos», el mismo mensaje que con una contraseña errónea |
+| Una sesión activa de una cuenta inactiva recibe 403 y se cierra | ✅ | `GET /dashboard` → 302 a `/cuenta-desactivada` con `Set-Cookie: sb-…-auth-token=; Max-Age=0` | En Playwright la cookie desaparece del navegador: `cookies: []` |
+| La página 403 muestra el aviso y el enlace al login | ✅ | `/cuenta-desactivada` → 403 con «Tu cuenta está desactivada. Contacta con el administrador.» y `href="/auth/login"` | El enlace lleva al login sin bucle de redirección |
+| Una ruta `/api/*` con sesión inactiva responde 403 en JSON | ✅ | `POST /api/invitations` → 403, `Content-Type: application/json`, `{"error":"Tu cuenta está desactivada. Contacta con el administrador."}` | No devuelve HTML |
+| Un usuario `activo` usa `/dashboard` con normalidad | ✅ | `GET /dashboard` → 200 con «Tu perfil», `jaime`, `jaime@google.com` y el badge «Administrador» | La tarjeta de perfil no muestra el estatus (fuera de alcance) |
+| La autorización por rol no cambia | ✅ | Sesión de `supervisor` en `/dashboard/admin/users` → 403 con «Acceso denegado…» y 0 filas; sin sesión → 302 a `/auth/login?next=%2Fdashboard%2Fadmin%2Fusers` | — |
+| La columna «Estatus» con badge | ✅ | `<thead>`: `Nombre`, `Correo`, `Rol`, `Estatus`; cada fila con `badge badge-success` «Activo» o `badge badge-error` «Inactivo» | Con 12 cuentas inactivas: 10 filas con `badge-error` y 0 con `badge-success` |
+| El selector filtra por `?estatus=` | ✅ | `?estatus=activo` → 4 filas, todas «Activo»; `?estatus=inactivo` → 10 filas, todas «Inactivo» | El `<select id="users-estatus">` marca la opción activa |
+| Un `?estatus` no válido equivale a «Todos» | ✅ | `?estatus=basura` → 16 filas, igual que sin filtro | `sanitizeEstatusFilter()` devuelve `null` |
+| El filtro se combina con la búsqueda | ✅ | `?q=jaime&estatus=activo` → 1 fila; `?q=Temporal&estatus=inactivo` → 12 filas | — |
+| La paginación conserva el filtro | ✅ | `?estatus=inactivo` → «Siguiente» apunta a `?estatus=inactivo&page=2`; con búsqueda, `?q=Temporal&estatus=inactivo&page=2` | Los enlaces arrastran `q` y `estatus` |
+| Enviar el formulario o el selector vuelve a la página 1 | ✅ | Desde `?estatus=inactivo&page=2`: al enviar el selector → `?q=&estatus=inactivo` («Mostrando 1–10»); al enviar la búsqueda → `?q=Temporal&estatus=inactivo` | El formulario es `GET` con los campos `q` y `estatus`, sin `page` |
+| «Quitar filtros» borra texto y estatus | ✅ | Enlace con texto «Quitar filtros» y `href="/dashboard/admin/users"`; tras pulsarlo: campo de búsqueda vacío y selector en «Todos» | — |
+| El contador corresponde al filtro | ✅ | `?estatus=activo` → «Mostrando 1–4 de 4 usuarios»; `?estatus=inactivo` → «Mostrando 1–10 de 12 usuarios»; página 2 → «Mostrando 11–12 de 12 usuarios» | El `.eq('estatus', …)` se aplica en el `count` y en la página de datos |
+| La tabla no tiene acciones sobre un usuario | ✅ | 0 elementos `table td a`, `table td button` o `table td form` | Los únicos botones de la página son «Cerrar sesión» y «Buscar» |
+| Sin scroll horizontal a 320 px | ✅ | Playwright a 320×640: `scrollWidth === clientWidth === 305` en `/dashboard/admin/users` | La tabla se desborda dentro de su contenedor `overflow-x-auto`, sin arrastrar la página |
+| Sin errores de consola | ✅ | `consoleErrors: []` en `/dashboard/admin/users` (320 px y 1280 px) | En `/cuenta-desactivada` el navegador anota el 403 como recurso, no es un error de la aplicación |
+| `README.md` y `AGENTS.md` al día | ✅ | Los dos describen el enum, la columna, el trigger, el bloqueo en dos capas, `/cuenta-desactivada`, el filtro `?estatus=` y el árbol final de `src/` | — |
+
+### Comprobaciones adicionales
+
+| Comprobación | Estado | Evidencia |
+| --- | --- | --- |
+| El trigger solo actúa si el valor cambia | ✅ | `pg_get_triggerdef`: `AFTER UPDATE OF estatus … WHEN ((old.estatus IS DISTINCT FROM new.estatus))` |
+| El trigger es `security definer` con `search_path` vacío | ✅ | `pg_proc`: `prosecdef = true`, `proconfig = {"search_path=\"\""}` |
+| La función coincide con la del spec | ✅ | `pg_get_functiondef` devuelve exactamente el `case when new.estatus = 'inactivo' then now() + interval '100 years' else null end` del spec |
+| El baneo impide renovar el token | ✅ | `POST /auth/v1/token?grant_type=refresh_token` con el refresh token de la cuenta baneada → 400 `user_banned` | La sesión muere sola aunque el token de acceso siga siendo válido hasta una hora |
+| El cierre de sesión borra la cookie del navegador | ✅ | Tras el 403, Playwright no muestra ninguna cookie de sesión (`cookies: []`) y `/dashboard` sin cookie responde 302 al login | — |
+| La ruta exempta no se redirige a sí misma | ✅ | `/cuenta-desactivada` responde 403 con o sin sesión | — |
+| Matiz del cierre de sesión | ⚠️ | La cookie se borra y el refresh token es rechazado por el baneo, pero las filas de `auth.sessions` no se borran: GoTrue responde 403 `user_banned` a `/logout` para una cuenta baneada y `auth-js` lo trata como «ya cerrada» | El token de acceso sigue siendo válido hasta una hora, pero el navegador ya no lo envía (cookie borrada) y no se puede renovar. No afecta a ningún criterio: el usuario no puede volver a entrar |
+| `/api/invitations` sigue exigiendo rol de `admin` | ✅ | Sin sesión → 401 `{"error":"No autorizado."}`; con sesión de `supervisor` → 403 `{"error":"Se requiere rol de administrador."}` | La comprobación usa `Astro.locals.currentUser.rol` |
+| El middleware resuelve la fila del solicitante una sola vez | ✅ | `src/middleware.ts` llama a `getCurrentUser()` una vez por petición con sesión y expone `Astro.locals.currentUser`; `dashboard/index.astro`, `dashboard/admin/users.astro` y `api/invitations.ts` lo reutilizan | — |
+| La base de datos queda como estaba | ✅ | Tras la prueba: 3 usuarios en `public.usuarios`, los 3 en `activo`, 0 baneados en `auth.users`, 0 cuentas temporales | Las 13 cuentas temporales se borraron con `auth.admin.deleteUser` (la FK `on delete cascade` eliminó sus perfiles) |
+| La tabla y la API no escriben en `public.usuarios` | ✅ | El listado solo llama a `listUsers()`; el único `UPDATE` de estatus se hizo a mano, como una prueba | — |
