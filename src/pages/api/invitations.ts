@@ -1,9 +1,6 @@
 import type { APIRoute } from 'astro';
 import { sendInviteEmail } from '../../features/invitations/lib/email';
-import { createSupabaseAdminClient } from '../../features/invitations/lib/supabase-admin';
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const GENERIC_INVITE_ERROR = 'No se pudo generar la invitación.';
+import { createInvitedUser, parseInviteInput } from '../../features/invitations/lib/invitations';
 
 function json(status: number, body: Record<string, unknown>): Response {
   return new Response(JSON.stringify(body), {
@@ -18,37 +15,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json(401, { error: 'No autorizado.' });
   }
 
-  const body = await request.json().catch(() => null);
-  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
-  if (!EMAIL_PATTERN.test(email)) {
-    return json(400, { error: 'Correo electrónico no válido.' });
-  }
-
   // El middleware ya resolvió la fila del solicitante y su rol.
   if (locals.currentUser?.rol !== 'admin') {
     return json(403, { error: 'Se requiere rol de administrador.' });
   }
 
-  const admin = createSupabaseAdminClient();
-  const { data: link, error: linkError } = await admin.auth.admin.generateLink({
-    type: 'invite',
-    email
-  });
+  const body = await request.json().catch(() => null);
+  const parsed = parseInviteInput(body);
+  if (!parsed.ok) {
+    return json(400, { error: parsed.error });
+  }
 
-  if (linkError || !link?.properties.hashed_token) {
-    if (linkError?.code === 'email_exists') {
-      // Mensaje genérico: no se filtra el detalle de Supabase
-      return json(409, { error: GENERIC_INVITE_ERROR });
-    }
-    console.error('[invitations] generateLink falló:', linkError?.message ?? linkError);
-    return json(500, { error: GENERIC_INVITE_ERROR });
+  const created = await createInvitedUser(parsed.input);
+  if (!created.ok) {
+    return json(created.reason === 'exists' ? 409 : 500, { error: created.error });
   }
 
   try {
     await sendInviteEmail({
       origin: new URL(request.url).origin,
-      email,
-      tokenHash: link.properties.hashed_token
+      email: parsed.input.email,
+      tokenHash: created.tokenHash
     });
   } catch (smtpError) {
     // El usuario queda pendiente: el admin puede re-invitar el mismo correo
