@@ -54,7 +54,7 @@ function formatearFecha(iso: string): string {
 					{usuarios.map((usuario) => (
 						<tr>
 							<td class="font-medium">{usuario.nombre}</td>
-							<td class="break-all">{usuario.email}</td>
+							<td class="break-all text-nowrap">{usuario.email}</td>
 							<td>
 								<span class={`badge ${ROL_INFO[usuario.rol].className}`}>
 									{ROL_INFO[usuario.rol].label}
