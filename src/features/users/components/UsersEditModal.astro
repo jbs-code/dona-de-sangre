@@ -90,15 +90,15 @@ const { currentUserId } = Astro.props
 	}
 
 	const dialog = query<HTMLDialogElement>('#users-edit-modal')
-	const form = query<HTMLFormElement>('#users-edit-form')
-	const nombreInput = query<HTMLInputElement>('#users-edit-nombre')
-	const emailInput = query<HTMLInputElement>('#users-edit-email')
-	const rolSelect = query<HTMLSelectElement>('#users-edit-rol')
-	const estatusSelect = query<HTMLSelectElement>('#users-edit-estatus')
-	const aviso = query('[data-aviso]')
-	const resultado = query('[data-resultado]')
-	const botonGuardar = query<HTMLButtonElement>('[data-accion="guardar"]')
-	const botonCancelar = query<HTMLButtonElement>('[data-accion="cancelar"]')
+	const form = dialog?.querySelector<HTMLFormElement>('#users-edit-form')
+	const nombreInput = dialog?.querySelector<HTMLInputElement>('#users-edit-nombre')
+	const emailInput = dialog?.querySelector<HTMLInputElement>('#users-edit-email')
+	const rolSelect = dialog?.querySelector<HTMLSelectElement>('#users-edit-rol')
+	const estatusSelect = dialog?.querySelector<HTMLSelectElement>('#users-edit-estatus')
+	const aviso = dialog?.querySelector('[data-aviso]')
+	const resultado = dialog?.querySelector('[data-resultado]')
+	const botonGuardar = dialog?.querySelector<HTMLButtonElement>('[data-accion="guardar"]')
+	const botonCancelar = dialog?.querySelector<HTMLButtonElement>('[data-accion="cancelar"]')
 
 	const currentUserId = dialog?.dataset.currentUserId ?? ''
 

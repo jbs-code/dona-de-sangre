@@ -14,6 +14,9 @@ El acceso a la aplicación está protegido: solo las cuentas creadas por el labo
 - Listado de los usuarios registrados con búsqueda por nombre o correo, filtro por estatus y paginación de 10 por página, resuelto en el servidor (sin JavaScript).
 - Estatus de cada cuenta (`activo` / `inactivo`): una cuenta inactiva no puede iniciar sesión ni usar la aplicación, y el `admin` ve el estatus de cada persona en el listado.
 - Alta de usuarios desde el panel administrativo: el `admin` abre un modal con nombre, correo y rol, revisa los datos en un paso previo de confirmación y, al confirmar, se envía la invitación por correo.
+- Gestión de usuarios desde el panel administrativo: edición del nombre, el rol y el estatus, reenvío de la invitación a las cuentas que aún no han validado su correo y eliminación definitiva de una cuenta.
+- Estado de la invitación en el listado: insignia «Pendiente» o «Confirmada» y fecha del último envío.
+- Autoprotección del `admin`: nadie puede cambiar su propio rol, su propio estatus ni eliminarse.
 - Flujo de invitación: el administrador genera un enlace, la aplicación envía el correo, el invitado confirma su correo y define su propia contraseña.
 - Esquema de base de datos con tabla de perfiles, roles, estatus y políticas RLS por tabla.
 - Estructura del proyecto organizada por funcionalidad (`src/features/`) con componentes reutilizables.
@@ -22,7 +25,6 @@ El acceso a la aplicación está protegido: solo las cuentas creadas por el labo
 **Pendiente**
 
 - Formulario de captura de donadores (el objetivo principal del producto).
-- Gestión de usuarios dentro del panel: actualizar, cambiar el rol, desactivar y eliminar cuentas ya dadas de alta. El alta, el listado y el bloqueo de las cuentas inactivas ya están implementados; falta la pantalla de edición y el cambio de estatus desde la aplicación.
 - Recuperación de contraseña («¿Olvidaste tu contraseña?»).
 
 ## Stack tecnológico
@@ -80,10 +82,11 @@ En [supabase.com](https://supabase.com), crea un proyecto y **guarda la contrase
 
 ### 2. Aplicar las migraciones
 
-El esquema de la aplicación está versionado en dos archivos de `supabase/migrations/`:
+El esquema de la aplicación está versionado en tres archivos de `supabase/migrations/`:
 
 - `20261107235752_create_usuarios.sql` — enum `rol_usuario`, tabla `public.usuarios`, RLS, políticas de lectura y triggers sobre `auth.users`.
 - `20261112185401_add_estatus_usuario.sql` — enum `estatus_usuario`, columna `public.usuarios.estatus` y el trigger que sincroniza el estatus con `auth.users.banned_until`.
+- `20261113201404_add_email_confirmado.sql` — columnas `public.usuarios.email_confirmado` y `public.usuarios.invitado_at`, trigger que las sincroniza con `auth.users` y backfill de las filas existentes.
 
 Aplícalos una sola vez, en ese orden, con cualquiera de estas vías:
 
@@ -97,7 +100,7 @@ Aplícalos una sola vez, en ese orden, con cualquiera de estas vías:
   npx supabase db push
   ```
 
-La primera migración crea el enum `rol_usuario`, la tabla `public.usuarios`, activa RLS sobre ella, define las políticas de lectura y añade los triggers `on_auth_user_created` y `on_auth_user_email_updated` sobre `auth.users`. La segunda añade el enum `estatus_usuario`, la columna `estatus` (obligatoria, por defecto `activo`) y el trigger `on_usuarios_estatus_changed`, que deja la cuenta baneada en Supabase Auth mientras el estatus sea `inactivo`.
+La primera migración crea el enum `rol_usuario`, la tabla `public.usuarios`, activa RLS sobre ella, define las políticas de lectura y añade los triggers `on_auth_user_created` y `on_auth_user_email_updated` sobre `auth.users`. La segunda añade el enum `estatus_usuario`, la columna `estatus` (obligatoria, por defecto `activo`) y el trigger `on_usuarios_estatus_changed`, que deja la cuenta baneada en Supabase Auth mientras el estatus sea `inactivo`. La tercera añade `email_confirmado` (si la persona validó su correo) e `invitado_at` (fecha del último envío de invitación), con el trigger `on_auth_user_invitation_changed` que los mantiene al día desde `auth.users`.
 
 ### 3. Configurar la autenticación
 
@@ -214,7 +217,7 @@ src/
 ├── lib/                                   # infraestructura compartida entre features
 │   ├── current-user.ts                    # perfil del solicitante (nombre, correo, rol, estatus)
 │   ├── database.types.ts                  # tipos de Supabase generados desde el MCP
-│   ├── estatus.ts                         # tipo Estatus y mapa ESTATUS_INFO (etiqueta, clase del badge)
+│   ├── estatus.ts                         # tipo Estatus, lista blanca ESTATUS_VALUES y mapa ESTATUS_INFO
 │   ├── roles.ts                           # tipo Rol, lista blanca ROL_VALUES y mapa ROL_INFO (etiqueta, clase del badge)
 │   └── supabase.ts                        # cliente de servidor (@supabase/ssr) con cookies
 ├── components/
@@ -226,9 +229,11 @@ src/
 │   ├── auth/components/                   # AuthCard, FormField, PasswordInput
 │   ├── dashboard/components/              # AdminUsersShortcutCard
 │   ├── users/
-│   │   ├── components/                    # AdminUsersPanel, UsersSearchForm, UsersTable, UsersPagination, UsersInviteModal
+│   │   ├── components/                    # AdminUsersPanel, UsersSearchForm, UsersTable, UsersPagination y los modales
+│   │   │                                  # UsersInviteModal, UsersEditModal, UsersDeleteModal, UsersResendModal
 │   │   └── lib/                           # users-list.ts (consulta, saneado y paginación)
-│   └── invitations/lib/                   # invitations.ts (validación y alta), email.ts (nodemailer) y supabase-admin.ts
+│   │                                      # users-admin.ts (validación y escrituras con clave secreta)
+│   └── invitations/lib/                   # invitations.ts (validación, alta y enlace), email.ts (nodemailer) y supabase-admin.ts
 └── pages/
     ├── cuenta-desactivada.astro           # 403 para una cuenta desactivada
     ├── dashboard/index.astro              # panel protegido
@@ -236,6 +241,8 @@ src/
     ├── auth/{login,confirm,update-password}.astro
     └── api/
         ├── invitations.ts
+        ├── users/[id].ts                  # PATCH (editar) y DELETE (eliminar) de un usuario
+        ├── users/[id]/reinvite.ts         # POST (reenviar la invitación)
         └── auth/{login,logout}.ts
 ```
 
@@ -266,6 +273,9 @@ Reglas de organización:
 | `POST /api/auth/login` | Inicia sesión con correo y contraseña. |
 | `POST /api/auth/logout` | Cierra la sesión. |
 | `POST /api/invitations` | Solo para `admin`: crea la persona invitada (nombre, correo y rol) y envía el correo de invitación. Cuerpo: `{ "email": "…", "nombre": "…", "rol": "…" }`, con `nombre` y `rol` opcionales. |
+| `PATCH /api/users/<id>` | Solo para `admin`: edita el perfil de una persona. Cuerpo: `{ "nombre": "…", "rol": "…", "estatus": "…" }`, con `rol` y `estatus` opcionales. El correo no se puede editar. |
+| `DELETE /api/users/<id>` | Solo para `admin`: elimina la cuenta de una persona. |
+| `POST /api/users/<id>/reinvite` | Solo para `admin`: reenvía la invitación a una cuenta que aún no ha validado su correo. |
 
 El flujo de invitación es: **invitar → correo → confirmar el enlace → elegir contraseña → entrar al panel**.
 
@@ -305,8 +315,45 @@ Quién escribe cada campo:
 El rol no se lee de los metadatos de la invitación, sino que lo decide el `admin` que llama a la API: el `UPDATE` usa la clave secreta (autoriza como `service_role` y no pasa por RLS) y escribe una sola vez el nombre y el rol confirmados en pantalla.
 
 - Si la escritura del perfil falla, el usuario recién creado **se borra** (`auth.admin.deleteUser`, que arrastra su fila de `public.usuarios`) y la respuesta es `500`: nunca queda una cuenta a medias que el `admin` no pueda arreglar desde la aplicación.
-- La persona **aparece en el listado aunque todavía no haya confirmado su correo**, porque la fila la crea el trigger al generarse el enlace. El listado no distingue entre «invitada» y «activa».
+- La persona **aparece en el listado aunque todavía no haya confirmado su correo**, porque la fila la crea el trigger al generarse el enlace. La columna «Invitación» del listado distingue «Pendiente» de «Confirmada» y muestra la fecha del último envío.
 - El correo saluda con el nombre de la persona («Hola, María, te hemos invitado a crear tu cuenta en Dona de Sangre»).
+
+## Edición, reenvío de invitación y borrado de usuarios
+
+El listado de `/dashboard/admin/users` incluye una columna «Acciones» con tres botones de icono por fila: **editar** (lápiz), **reenviar invitación** (avión de papel) y **eliminar** (papelera). Los datos de la fila viajan en atributos `data-*`, así que abrir un modal no hace ninguna petición.
+
+| Acción | Cuándo está disponible | Qué hace |
+| ------ | ----------------------- | -------- |
+| Editar | Siempre | Abre un modal con el nombre, el correo (solo lectura), el rol y el estatus precargados. |
+| Reenviar invitación | Solo si la cuenta no ha validado su correo | Regenera el enlace de invitación y envía el correo otra vez. |
+| Eliminar | Siempre, salvo en la fila del propio `admin` (botón deshabilitado) | Borra la cuenta de forma definitiva. |
+
+**Edición.** El modal manda `PATCH /api/users/<id>` con `{ nombre, rol, estatus }` y recarga el listado al terminar, de modo que se conservan la búsqueda, el filtro y la página. El correo no se puede editar (es la clave de la cuenta en Supabase Auth): el propio modal lo explica y la regla del laboratorio es borrar la cuenta y crear otra con el correo nuevo. Si la persona editada es el propio `admin`, el modal avisa («No puedes cambiar tu propio rol ni tu estatus.»), deshabilita los dos selectores y solo envía el nombre.
+
+**Reenvío.** El enlace de invitación caduca en 1 hora, así que el botón permite recuperarlo sin rehacer la cuenta: GoTrue renueva el token de la cuenta sin confirmar y conserva su `id`, su nombre y su rol. El modal avisa de que el enlace anterior deja de funcionar. Una cuenta que ya validó su correo no se puede reenviar: la API responde `409` y no se manda ningún correo.
+
+**Eliminación.** El modal recuerda el texto de la persona y su correo y avisa de que se borrará su cuenta. También recuerda la alternativa reversible: cambiar el estatus a «Inactivo» conserva la cuenta y la deja reactivable. La eliminación llama a `DELETE /api/users/<id>`, que borra la cuenta en Supabase Auth (y su fila de `public.usuarios` en cascada).
+
+**Autoprotección.** La comprobación vive en el servidor, comparando el `id` de la ruta con el de la sesión:
+
+- No se puede cambiar el **propio** rol ni el **propio** estatus (`403`).
+- No se puede **eliminar** la propia cuenta (`403`).
+
+Como nadie puede eliminarse a sí mismo, siempre queda al menos un `admin` en el sistema. Un `admin` sí puede editar por completo a otro `admin`.
+
+**Códigos de respuesta.** `401` si falta la sesión, `403` si el rol no es `admin` o si se intenta la autoprotección, `400` si los datos no son válidos (`nombre` vacío o de más de 120 caracteres, `rol` o `estatus` fuera de la lista blanca), `404` si la cuenta no existe, `409` si se reenvía la invitación a una cuenta ya confirmada y `500` si falla Supabase o el SMTP. El detalle del error queda en el log del servidor; al cliente solo se devuelve un mensaje genérico.
+
+También se puede hacer por HTTP (útil para automatizaciones), siempre con la sesión de un `admin`:
+
+```sh
+curl -b cookies.txt -X PATCH http://localhost:4321/api/users/<id> \
+  -H 'Content-Type: application/json' \
+  -d '{"nombre":"Nombre corregido","rol":"supervisor","estatus":"activo"}'
+
+curl -b cookies.txt -X POST http://localhost:4321/api/users/<id>/reinvite
+
+curl -b cookies.txt -X DELETE http://localhost:4321/api/users/<id>
+```
 
 ## Estatus de las cuentas
 
@@ -322,7 +369,7 @@ Cada cuenta de `public.usuarios` tiene un estatus: `activo` (por defecto) o `ina
 
 El login no se modifica: `POST /api/auth/login` responde «Correo o contraseña incorrectos» tanto si la contraseña es errónea como si la cuenta está desactivada, de modo que no se revela qué correos existen.
 
-**El estatus todavía no se cambia desde la aplicación**: la interfaz de gestión de usuarios del panel administrativo llegará en un spec posterior. Mientras tanto se modifica con un `UPDATE` en el panel de Supabase:
+**El estatus se cambia desde la aplicación**: el `admin` lo edita en el modal de edición de `/dashboard/admin/users`. El cambio se escribe con la clave secreta y el trigger `on_usuarios_estatus_changed` se encarga del baneo, sin que la aplicación tenga que saber de él. También se puede modificar a mano en el panel de Supabase:
 
 ```sql
 update public.usuarios
@@ -341,15 +388,17 @@ La tabla `public.usuarios` guarda el perfil de cada cuenta (nunca contraseñas) 
 | `email` | `text` | Obligatorio y único, en minúsculas. |
 | `rol` | `rol_usuario` | `admin`, `supervisor` o `capturador`. Por defecto `capturador`. |
 | `estatus` | `estatus_usuario` | `activo` o `inactivo`. Obligatorio, por defecto `activo`. |
+| `email_confirmado` | `boolean` | `true` cuando la persona validó su correo. Lo mantiene el trigger `on_auth_user_invitation_changed`. |
+| `invitado_at` | `timestamptz` | Fecha del último envío de invitación. `null` si la cuenta no fue invitada desde la aplicación. |
 | `created_at` | `timestamptz` | Fecha de alta. |
 
 | Rol | Permisos actuales |
 | --- | ----------------- |
-| `admin` | Acceso al panel, al área de administración de usuarios (`/dashboard/admin/users`), al alta de usuarios desde esa pantalla e invitaciones (`POST /api/invitations`). |
+| `admin` | Acceso al panel, al área de administración de usuarios (`/dashboard/admin/users`), al alta, edición, reenvío de invitación y borrado de cuentas, y a las rutas de API de usuarios. |
 | `supervisor` | Acceso al panel; por RLS puede leer los perfiles del equipo. |
 | `capturador` | Acceso al panel y a su propio perfil. |
 
-Los roles se distinguen en la interfaz en el área de administración de usuarios (visible solo para `admin` y con un 403 en el servidor para el resto), en el listado de usuarios, donde cada fila muestra el rol con su etiqueta legible, en el selector del modal de alta de usuarios y en el endpoint de invitaciones. El estatus de cada cuenta se distingue en el mismo listado, con un badge «Activo» o «Inactivo». El resto de la interfaz está en desarrollo.
+Los roles se distinguen en la interfaz en el área de administración de usuarios (visible solo para `admin` y con un 403 en el servidor para el resto), en el listado de usuarios, donde cada fila muestra el rol con su etiqueta legible, en los selectores de los modales de alta y de edición, y en las rutas de API. El estatus de cada cuenta se distingue en el mismo listado, con un badge «Activo» o «Inactivo». El resto de la interfaz está en desarrollo.
 
 ## Despliegue en Netlify
 
@@ -367,10 +416,13 @@ No subas el archivo `.env` al repositorio: las credenciales viajan siempre por l
 - Todas las variables sensibles son secretos de servidor (`context: 'server'`, `access: 'secret'`): no aparecen en el HTML, en el JS servido al cliente ni en `dist/`.
 - RLS está activo en `public.usuarios` con políticas por tabla: un usuario autenticado solo puede leer su propio perfil, y `admin` o `supervisor` pueden leer los del equipo.
 - La clave secreta (`sb_secret_…`) solo se usa en `src/features/invitations/lib/supabase-admin.ts`, y ese módulo únicamente se importa desde rutas de API.
+- Las escrituras de los perfiles (alta, edición y borrado) usan la clave secreta, así que `public.usuarios` no abre ninguna política de escritura en RLS: la tabla sigue siendo de solo lectura para el rol `authenticated`.
+- Las rutas de gestión de usuarios (`/api/users/…`) exigen rol `admin` y comprueban en el servidor que nadie cambie su propio rol ni su propio estatus, ni se elimine a sí mismo.
 - Las cookies de sesión son `httpOnly`, `sameSite=lax` y `secure` en producción; las peticiones se autorizan con `getClaims()`, nunca con `getSession()`.
 - Las rutas bajo `/dashboard` son las únicas que exigen sesión.
 - Las cuentas con estatus `inactivo` no pueden entrar ni usar la aplicación: el baneo de Supabase Auth impide el inicio de sesión y el middleware cierra la sesión y responde 403 en cualquier petición. La comprobación falla cerrada: si el estatus no se puede leer, la aplicación responde 503.
 - El inicio de sesión no revela si un correo existe: una contraseña incorrecta y una cuenta desactivada devuelven el mismo mensaje.
+- El reenvío de invitación solo se ofrece a cuentas sin confirmar y la API responde `409` si la cuenta ya validó su correo: no se envía ningún correo a una cuenta activa.
 
 ## Solución de problemas
 
@@ -384,6 +436,8 @@ No subas el archivo `.env` al repositorio: las credenciales viajan siempre por l
 | El login dice «Correo o contraseña incorrectos» y la contraseña es correcta | La cuenta puede estar desactivada: el login no lo distingue por seguridad. Comprueba el estatus en `public.usuarios` o en el panel de Supabase. |
 | Una cuenta desactivada no puede volver a entrar | Reactívala con `update public.usuarios set estatus = 'activo' where email = '…'`; el trigger levanta el baneo de Supabase Auth. |
 | `email_exists` al invitar | El correo ya tiene cuenta: no se crea una segunda y la respuesta es genérica. |
+| `409` al reenviar una invitación | La cuenta ya validó su correo: el reenvío solo aplica a invitaciones pendientes. |
+| `403` al editar o borrar tu propia cuenta | Es la autoprotección: nadie cambia su propio rol ni su estatus, ni se elimina a sí mismo. Que otro `admin` lo haga por ti. |
 | El modal de alta no se abre | Es la única parte del panel que necesita JavaScript: sin él, el `<dialog>` no se puede abrir. La búsqueda, el filtro y la paginación siguen funcionando. |
 | La invitación se envía pero la persona no aparece en la tabla | La fila se crea al generarse el enlace, no al confirmar el correo. Recarga el listado (botón «Cerrar y ver el listado» o `F5`). |
 

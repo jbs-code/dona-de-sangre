@@ -1,9 +1,11 @@
 ---
 import AlertError from '../../../components/ui/AlertError.astro'
 import { USERS_PER_PAGE, type UsersListResult } from '../lib/users-list'
+import UsersDeleteModal from './UsersDeleteModal.astro'
 import UsersEditModal from './UsersEditModal.astro'
 import UsersInviteModal from './UsersInviteModal.astro'
 import UsersPagination from './UsersPagination.astro'
+import UsersResendModal from './UsersResendModal.astro'
 import UsersSearchForm from './UsersSearchForm.astro'
 import UsersTable from './UsersTable.astro'
 
@@ -71,3 +73,5 @@ const autorizado = !denied && result !== undefined
 
 {autorizado && <UsersInviteModal />}
 {autorizado && <UsersEditModal currentUserId={currentUserId} />}
+{autorizado && <UsersDeleteModal />}
+{autorizado && <UsersResendModal />}

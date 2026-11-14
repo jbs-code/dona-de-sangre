@@ -6,12 +6,16 @@
 - App must be responsive: it has to read clearly on smartphones and PCs (verified at 320 px, no horizontal scroll).
 - Astro 7 SSR site (`output: 'server'`) with the `@astrojs/netlify` adapter, Tailwind CSS 4 (Vite plugin) and daisyUI 5. No UI framework integration (React/Vue/Svelte).
 - Supabase Auth is wired through `@supabase/ssr` with server-side cookies: `src/lib/supabase.ts`, `src/middleware.ts` (session refresh, `/dashboard` protection and the account-status check), `POST /api/auth/login` and `POST /api/auth/logout`. `public.usuarios` stores the profile, the role (`admin` / `supervisor` / `capturador`) and the status (`activo` / `inactivo`) with RLS; it never stores passwords.
-- Pages: `src/pages/auth/login.astro`, protected `src/pages/dashboard/index.astro`, role-protected `src/pages/dashboard/admin/users.astro` (403 unless the session is an `admin`; lists the users with server-side search, status filter and pagination), `src/pages/auth/confirm.astro` (verifies the invite token), `src/pages/auth/update-password.astro` (GET form + POST handler), `src/pages/cuenta-desactivada.astro` (403 shown to a deactivated account) and API routes `src/pages/api/{auth/login,auth/logout,invitations}.ts`; `/` redirects to `/auth/login` through `redirects` in `astro.config.mjs`. Only stylesheet: `src/styles/global.css`.
+- Pages: `src/pages/auth/login.astro`, protected `src/pages/dashboard/index.astro`, role-protected `src/pages/dashboard/admin/users.astro` (403 unless the session is an `admin`; lists the users with server-side search, status filter and pagination), `src/pages/auth/confirm.astro` (verifies the invite token), `src/pages/auth/update-password.astro` (GET form + POST handler), `src/pages/cuenta-desactivada.astro` (403 shown to a deactivated account) and API routes `src/pages/api/{auth/login,auth/logout,invitations}.ts` plus `src/pages/api/users/[id].ts` (PATCH/DELETE) and `src/pages/api/users/[id]/reinvite.ts` (POST); `/` redirects to `/auth/login` through `redirects` in `astro.config.mjs`. Only stylesheet: `src/styles/global.css`.
 - Role checks live in page frontmatter, not in `src/middleware.ts`: the middleware only protects `/dashboard/*` by session and blocks deactivated accounts. `src/lib/current-user.ts` (`getCurrentUser`) is the single reader of the requester's row in `public.usuarios`; the middleware resolves it once per request and exposes it as `Astro.locals.currentUser`.
-- Deactivated accounts are blocked in two layers: a database trigger keeps `auth.users.banned_until` in sync with `public.usuarios.estatus` (so `signInWithPassword` fails), and the middleware closes the session and answers 403 on any request with a session whose status is `inactivo` (302 to `/cuenta-desactivada` for pages, JSON for `/api/*`, 503 if the status cannot be read). The status is not editable from the app yet: it is changed with an `UPDATE` in the Supabase dashboard.
+- Deactivated accounts are blocked in two layers: a database trigger keeps `auth.users.banned_until` in sync with `public.usuarios.estatus` (so `signInWithPassword` fails), and the middleware closes the session and answers 403 on any request with a session whose status is `inactivo` (302 to `/cuenta-desactivada` for pages, JSON for `/api/*`, 503 if the status cannot be read). The status is editable from the app: the `admin` changes it in the edit modal of `/dashboard/admin/users`.
 - The user listing reads `public.usuarios` with the requester's own session client (`Astro.locals.supabase`), so RLS does the filtering; the secret key stays out of it. The search term is sanitized before it reaches the PostgREST filter (`sanitizeSearchTerm` in `src/features/users/lib/users-list.ts`) and the status filter is a whitelist (`sanitizeEstatusFilter`).
 - The admin can create people from `/dashboard/admin/users`: a `<dialog class="modal">` (`src/features/users/components/UsersInviteModal.astro`) with three views (form → confirmation → result) that posts `{ nombre, email, rol }` to `POST /api/invitations`. The button and the modal are rendered only in the authorized branch of `AdminUsersPanel.astro` (`autorizado = !denied && result !== undefined`), so a non-admin gets a 403 and no button in the HTML.
-- `POST /api/invitations` accepts `email` (required) plus optional `nombre` (1–120 chars) and `rol` (whitelist `ROL_VALUES`); `src/features/invitations/lib/invitations.ts` owns `parseInviteInput()` and `createInvitedUser()`. The role is written by the server with the secret key (`service_role`, bypasses RLS), never read from the invite metadata: metadata can be written by whoever creates the user in Auth, while the role is an authorization decision. If that write fails, the just-created user is deleted (`auth.admin.deleteUser`, cascades to `public.usuarios`) so no half-created account is left behind. `ROL_VALUES` in `src/lib/roles.ts` is the single source of truth for the whitelist (server validation and the modal's `<select>`).
+- `POST /api/invitations` accepts `email` (required) plus optional `nombre` (1–120 chars) and `rol` (whitelist `ROL_VALUES`); `src/features/invitations/lib/invitations.ts` owns `parseInviteInput()`, `generateInviteLink()` and `createInvitedUser()`. The role is written by the server with the secret key (`service_role`, bypasses RLS), never read from the invite metadata: metadata can be written by whoever creates the user in Auth, while the role is an authorization decision. If that write fails, the just-created user is deleted (`auth.admin.deleteUser`, cascades to `public.usuarios`) so no half-created account is left behind. `ROL_VALUES` in `src/lib/roles.ts` is the single source of truth for the whitelist (server validation and the modal's `<select>`).
+- The admin also manages existing accounts from the same table: three icon buttons per row (Lucide `Pencil`, `Send`, `Trash`) that open `UsersEditModal.astro`, `UsersResendModal.astro` and `UsersDeleteModal.astro`. The row data travels in `data-user-*` attributes (no request to open a modal) and each modal's `<script>` scopes its queries to its own `<dialog>` (the modals share `data-email` / `data-resultado` names).
+- `PATCH /api/users/[id]` (edit), `DELETE /api/users/[id]` (delete) and `POST /api/users/[id]/reinvite` (resend the invitation) live in `src/pages/api/users/`. All three require an `admin` session (401 without a session, 403 otherwise) and answer with a generic message; the details go to the server log. `src/features/users/lib/users-admin.ts` owns `parseUserUpdateInput()`, `findUserProfile()`, `updateUserProfile()` and `deleteUserAccount()`, all with the secret key (so `public.usuarios` keeps only its `select` policy).
+- Self-protection is enforced on the server, comparing the route `id` with `locals.claims.sub`: nobody changes their own `rol` or `estatus`, and nobody deletes their own account (403). The modals only disable those fields as a courtesy. An `admin` can still edit another `admin` fully.
+- `public.usuarios.email_confirmado` and `public.usuarios.invitado_at` mirror `auth.users.email_confirmed_at` and `auth.users.invited_at` through the trigger `on_auth_user_invitation_changed` (`private.sync_user_invitation()`). The resend of an invitation does not delete and recreate the account: GoTrue renews the `confirmation_token` of an unconfirmed user and keeps its `id`, `nombre` and `rol`; a confirmed account is rejected with 409.
 
 ## Structure
 
@@ -23,7 +27,7 @@ src/
 ├── lib/                                   # multi-feature infra
 │   ├── current-user.ts                    # requester's profile (nombre, email, rol, estatus) + getCurrentUser()
 │   ├── database.types.ts                  # Supabase types generated from the MCP
-│   ├── estatus.ts                         # Estatus type + ESTATUS_INFO map (label, badge class)
+│   ├── estatus.ts                         # Estatus type + ESTATUS_VALUES whitelist + ESTATUS_INFO map (label, badge class)
 │   ├── roles.ts                           # Rol type + ROL_VALUES whitelist + ROL_INFO map (label, badge class)
 │   └── supabase.ts                        # @supabase/ssr server client factory
 ├── components/
@@ -42,17 +46,22 @@ src/
 │   │       └── AdminUsersShortcutCard.astro # admin-only card linking to /dashboard/admin/users
 │   ├── users/
 │   │   ├── components/
-│   │   │   ├── AdminUsersPanel.astro      # props denied?/result?: card that composes the three below
+│   │   │   ├── AdminUsersPanel.astro      # props denied?/result?/currentUserId: card that composes the row actions
 │   │   │   ├── UsersSearchForm.astro      # GET form (q + estatus) + «Quitar filtros»
-│   │   │   ├── UsersTable.astro           # table (nombre, correo, rol, estatus) + empty states
+│   │   │   ├── UsersTable.astro           # table (nombre, correo, rol, estatus, invitación, acciones) + empty states
 │   │   │   ├── UsersPagination.astro      # daisyUI join of page links (keeps q + estatus)
-│   │   │   └── UsersInviteModal.astro     # <dialog> modal: form → confirmation → result + its script
+│   │   │   ├── UsersInviteModal.astro     # <dialog> modal: form → confirmation → result + its script
+│   │   │   ├── UsersEditModal.astro       # <dialog> modal: prefilled nombre/rol/estatus + its script
+│   │   │   ├── UsersDeleteModal.astro     # <dialog> modal: warning + confirmation + its script
+│   │   │   └── UsersResendModal.astro     # <dialog> modal: resend confirmation + its script
 │   │   └── lib/
-│   │       └── users-list.ts              # listUsers(), countUsers(), fetchUsersPage(),
-│   │                                      # sanitizeSearchTerm(), sanitizeEstatusFilter(), buildPageWindow()
+│   │       ├── users-list.ts              # listUsers(), countUsers(), fetchUsersPage(),
+│   │       │                              # sanitizeSearchTerm(), sanitizeEstatusFilter(), buildPageWindow()
+│   │       └── users-admin.ts             # parseUserUpdateInput(), findUserProfile(),
+│   │                                      # updateUserProfile(), deleteUserAccount(), isUserId()
 │   └── invitations/
 │       └── lib/
-│           ├── invitations.ts              # parseInviteInput() + createInvitedUser() (compensating delete)
+│           ├── invitations.ts              # parseInviteInput() + generateInviteLink() + createInvitedUser()
 │           ├── email.ts                   # nodemailer SMTP sender (greets by name, escapes the HTML)
 │           └── supabase-admin.ts          # admin client using SUPABASE_SECRET_API_KEY
 └── pages/
@@ -62,6 +71,8 @@ src/
     ├── auth/{login,confirm,update-password}.astro
     └── api/
         ├── invitations.ts
+        ├── users/[id].ts                  # PATCH (edit) + DELETE (remove) of one user
+        ├── users/[id]/reinvite.ts         # POST (resend the invitation)
         └── auth/{login,logout}.ts
 ```
 
@@ -111,6 +122,7 @@ Manage it with `npx astro dev stop`, `npx astro dev status`, and `npx astro dev 
 - `src/styles/global.css` is the entire setup: `@import "tailwindcss";` plus `@plugin "daisyui";`.
 - Tailwind 4 is configured only through the Vite plugin in `astro.config.mjs`. Do not add `tailwind.config.js` (deprecated in v4).
 - `src/components/ui/BaseLayout.astro` imports `src/styles/global.css`; pages wrap their markup in it instead of importing the stylesheet themselves.
+- Icons come from `@lucide/astro` (`import { Pencil } from '@lucide/astro'`), not from inline SVG. Watch the deprecated aliases: `Trash2` is now `Trash`.
 - Read the `daisyui` skill in `.agents/skills/daisyui/` before writing markup or choosing component classes.
 
 ## Supabase
@@ -122,6 +134,7 @@ Manage it with `npx astro dev stop`, `npx astro dev status`, and `npx astro dev 
 - Never use a `service_role`/secret key in frontend code. Enable RLS on every table in an exposed schema and write policies per table, not a blanket `auth.uid()`. `public.usuarios` already has RLS and `select`-only grants for `authenticated`.
 - Session cookies are `httpOnly`, `sameSite=lax` and `secure` only in production; requests are authorized with `getClaims()`, not `getSession()`. The middleware protects `/dashboard/*` by session and blocks deactivated accounts; role authorization is checked in page frontmatter.
 - `public.usuarios.estatus` is `public.estatus_usuario` (`activo` / `inactivo`), `not null` with default `activo`. The trigger `on_usuarios_estatus_changed` (`private.sync_user_estatus()`, `security definer` + `set search_path = ''`) mirrors it into `auth.users.banned_until`; it only fires when the value actually changes. Both migrations live in `supabase/migrations/`: `20261107235752_create_usuarios.sql` and `20261112185401_add_estatus_usuario.sql`.
+- `public.usuarios.email_confirmado` (`boolean not null default false`) and `public.usuarios.invitado_at` (`timestamptz`) are mirrored from `auth.users` by the trigger `on_auth_user_invitation_changed` (`private.sync_user_invitation()`), which runs `after update of email_confirmed_at, invited_at`. The third migration (`20261113201404_add_email_confirmado.sql`) also backfills the existing rows from `auth.users`. No recursion with the status trigger: each writes columns the other does not touch.
 - Types are generated with `generate_typescript_types` from the MCP and stored in `src/lib/database.types.ts`; the server client is `SupabaseClient<Database>`.
 - The Supabase MCP server is configured globally in `~/.config/opencode/opencode.jsonc` (project ref `ugzbcrwykivvisbvpozo`, the same as `SUPABASE_URL` in `.env`), not in this repo's `opencode.jsonc`. Use it to inspect tables, migrations, logs, and advisors before changing the remote project.
 
@@ -136,6 +149,8 @@ Unchanged rules, restated here so they are never lost during refactors:
 - The login endpoint never reveals whether an account exists: `POST /api/auth/login` answers the same generic error for a wrong password and for a banned account.
 - The invitation endpoint never reveals whether an account exists either: `POST /api/invitations` answers a generic 409 for an already-registered email.
 - The role of an invited person is decided by the server from the request body, never from the invite metadata (see Project above): only the `admin` that calls the API can choose it.
+- The user-management routes (`/api/users/**`) check the role on the server (`locals.currentUser?.rol !== 'admin'` → 403) and enforce self-protection (no own `rol`/`estatus` change, no own deletion → 403). The disabled fields in the modals are only a courtesy.
+- The reinvite endpoint never mails a confirmed account: `public.usuarios.email_confirmado` is checked first (409) and GoTrue's `email_exists` is mapped to the same 409.
 
 ## Email (SMTP)
 
@@ -153,7 +168,7 @@ Unchanged rules, restated here so they are never lost during refactors:
 - `/spec-impl` executes the implementation plan **one numbered step at a time**: implement exactly one step, summarize the files touched and show the diff, then **stop and wait for human review**. Never chain several steps in one go; continue only after the user explicitly confirms (`yes`, `go`, equivalent). If there are no steps left, say so and stop.
 - Never commit automatically, per step or at the end; only when the user explicitly asks. Only a human moves a spec to `Approved` and to `Implemented`. `/spec-impl` creates/switches to branch `spec-NN-slug` before implementing.
 - `spec-verifier` only verifies and edits files under `specs/**`; it must not change app code or the spec's status.
-- `specs/` holds `specs/01-login.md`, `specs/02-auth-supabase.md`, `specs/03-invitacion-confirmacion.md` and `specs/04-toggle-visibilidad-contrasena.md` (all `Implementado`), plus `specs/05-refactor-fdd-componentes.md`, `specs/06-admin-usuarios.md`, `specs/07-listado-usuarios.md`, `specs/08-estatus-usuarios.md` and `specs/09-alta-usuario-desde-panel.md`. New specs follow `specs/NN-slug.md`.
+- `specs/` holds `specs/01-login.md`, `specs/02-auth-supabase.md`, `specs/03-invitacion-confirmacion.md` and `specs/04-toggle-visibilidad-contrasena.md` (all `Implementado`), plus `specs/05-refactor-fdd-componentes.md`, `specs/06-admin-usuarios.md`, `specs/07-listado-usuarios.md`, `specs/08-estatus-usuarios.md`, `specs/09-alta-usuario-desde-panel.md` and `specs/10-edicion-borrado-y-reenvio-invitacion.md`. New specs follow `specs/NN-slug.md`.
 - `spec-verifier` uses `npx astro dev *`, `npm run build`, `npx tsc --noEmit` (never `astro check`), read-only git, read-only `curl`, Playwright, Context7, Astro Docs and the Supabase MCP. Its Supabase access is read-only: no migrations, branches, Edge Functions or DML/DDL. It must ask before mutating real state (invitations, real `POST`s).
 
 ## References
