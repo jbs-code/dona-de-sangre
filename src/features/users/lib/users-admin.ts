@@ -4,6 +4,7 @@ import { ROL_VALUES, type Rol } from '../../../lib/roles';
 import { createSupabaseAdminClient } from '../../invitations/lib/supabase-admin';
 
 const NOMBRE_MAX_LENGTH = 120;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type UserProfile = {
   id: string;
@@ -39,6 +40,11 @@ function isRol(value: string): value is Rol {
 
 function isEstatus(value: string): value is Estatus {
   return ESTATUS_VALUES.some((estatus) => estatus === value);
+}
+
+/** El id de la ruta debe ser el UUID de `public.usuarios` (el de `auth.users`). */
+export function isUserId(id: string): boolean {
+  return UUID_PATTERN.test(id);
 }
 
 /**
