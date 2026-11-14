@@ -21,8 +21,37 @@ export type CreateInvitedUserResult =
   | { ok: true; input: InviteInput; tokenHash: string }
   | { ok: false; reason: 'exists' | 'failed'; error: string };
 
+export type GenerateInviteLinkResult =
+  | { ok: true; userId: string; tokenHash: string }
+  | { ok: false; reason: 'exists' | 'failed'; error: string };
+
 function isRol(value: string): value is Rol {
   return ROL_VALUES.some((rol) => rol === value);
+}
+
+/**
+ * Genera el enlace de invitación con GoTrue. Si la cuenta ya existe y está
+ * confirmada, GoTrue responde `email_exists`; si existe sin confirmar,
+ * renueva su token y conserva el mismo `id`.
+ */
+export async function generateInviteLink(email: string): Promise<GenerateInviteLinkResult> {
+  const admin = createSupabaseAdminClient();
+
+  const { data: link, error: linkError } = await admin.auth.admin.generateLink({
+    type: 'invite',
+    email
+  });
+
+  if (linkError || !link?.properties.hashed_token || !link.user?.id) {
+    if (linkError?.code === 'email_exists') {
+      // Mensaje genérico: no se filtra el detalle de Supabase
+      return { ok: false, reason: 'exists', error: GENERIC_INVITE_ERROR };
+    }
+    console.error('[invitations] generateLink falló:', linkError?.message ?? linkError);
+    return { ok: false, reason: 'failed', error: GENERIC_INVITE_ERROR };
+  }
+
+  return { ok: true, userId: link.user.id, tokenHash: link.properties.hashed_token };
 }
 
 /** Valida y normaliza el cuerpo de la petición de invitación. */
@@ -64,34 +93,24 @@ export function parseInviteInput(body: unknown): ParseInviteResult {
 export async function createInvitedUser(input: InviteInput): Promise<CreateInvitedUserResult> {
   const admin = createSupabaseAdminClient();
 
-  const { data: link, error: linkError } = await admin.auth.admin.generateLink({
-    type: 'invite',
-    email: input.email
-  });
-
-  if (linkError || !link?.properties.hashed_token || !link.user?.id) {
-    if (linkError?.code === 'email_exists') {
-      // Mensaje genérico: no se filtra el detalle de Supabase
-      return { ok: false, reason: 'exists', error: GENERIC_INVITE_ERROR };
-    }
-    console.error('[invitations] generateLink falló:', linkError?.message ?? linkError);
-    return { ok: false, reason: 'failed', error: GENERIC_INVITE_ERROR };
+  const link = await generateInviteLink(input.email);
+  if (!link.ok) {
+    return { ok: false, reason: link.reason, error: link.error };
   }
 
-  const userId = link.user.id;
   const { error: profileError } = await admin
     .from('usuarios')
     .update({ nombre: input.nombre, rol: input.rol })
-    .eq('id', userId);
+    .eq('id', link.userId);
 
   if (profileError) {
     console.error('[invitations] no se pudo guardar el perfil:', profileError.message);
-    const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
+    const { error: deleteError } = await admin.auth.admin.deleteUser(link.userId);
     if (deleteError) {
       console.error('[invitations] no se pudo borrar el usuario tras el fallo del perfil:', deleteError.message);
     }
     return { ok: false, reason: 'failed', error: PROFILE_ERROR };
   }
 
-  return { ok: true, input, tokenHash: link.properties.hashed_token };
+  return { ok: true, input, tokenHash: link.tokenHash };
 }
