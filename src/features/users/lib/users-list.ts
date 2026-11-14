@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../../lib/database.types';
-import type { Estatus } from '../../../lib/estatus';
+import { ESTATUS_VALUES, type Estatus } from '../../../lib/estatus';
 import type { Rol } from '../../../lib/roles';
 
 export const USERS_PER_PAGE = 10;
@@ -8,7 +8,6 @@ export const USERS_PER_PAGE = 10;
 const MAX_SEARCH_LENGTH = 100;
 const PAGE_WINDOW_SIZE = 5;
 const DISALLOWED_SEARCH_CHARS = /[^\p{L}\p{N} @.\-_]/gu;
-const ESTATUS_VALUES: Estatus[] = ['activo', 'inactivo'];
 
 export type UsuarioListItem = {
   id: string;
@@ -16,6 +15,8 @@ export type UsuarioListItem = {
   email: string;
   rol: Rol;
   estatus: Estatus;
+  email_confirmado: boolean;
+  invitado_at: string | null;
 };
 
 export type UsersListResult = {
@@ -124,7 +125,7 @@ export async function fetchUsersPage(
 
   let query = supabase
     .from('usuarios')
-    .select('id, nombre, email, rol, estatus')
+    .select('id, nombre, email, rol, estatus, email_confirmado, invitado_at')
     .order('nombre', { ascending: true })
     .order('email', { ascending: true });
 
