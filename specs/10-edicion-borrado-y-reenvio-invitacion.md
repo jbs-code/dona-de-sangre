@@ -1,6 +1,6 @@
 # SPEC 10 — Edición, reenvío de invitación y borrado de usuarios
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 02, SPEC 07, SPEC 08, SPEC 09
 > **Fecha:** 2026-11-13
 > **Objetivo:** Permitir que un `admin` administre las personas de la tabla de `/dashboard/admin/users`: editar su nombre, rol y estatus, reenviar la invitación a las cuentas que aún no han validado su correo y eliminar definitivamente una cuenta.
@@ -312,35 +312,35 @@ src/
 
 ## Criterios de aceptación
 
-- [ ] `npm run build` termina correctamente (solo los avisos no fatales `Invalid empty selector` de daisyUI).
-- [ ] `npx tsc --noEmit` no reporta errores.
-- [ ] `npm run check` (`astro check`) no reporta errores en los `.astro`.
-- [ ] La migración añade `email_confirmado` e `invitado_at` a `public.usuarios`, y el backfill deja las filas existentes con el estado real de `auth.users`.
-- [ ] Cuando una persona confirma su correo, `public.usuarios.email_confirmado` pasa a `true` sin intervención manual.
-- [ ] Con sesión de `admin`, `/dashboard/admin/users` muestra un botón de icono de Lucide por usuario para editar, reenviar y eliminar.
-- [ ] Con sesión de un usuario que no es `admin`, la página responde 403 y su HTML no contiene los botones de acción ni los tres modales.
-- [ ] El botón de editar abre un `<dialog class="modal">` con los datos de esa persona precargados: nombre, correo, rol y estatus.
-- [ ] El correo aparece en solo lectura y el modal explica que para cambiarlo hay que eliminar la cuenta y crear otra.
-- [ ] El `select` de rol ofrece exactamente las tres etiquetas de `ROL_INFO` y el de estatus las de `ESTATUS_INFO`.
-- [ ] «Guardar cambios» envía `PATCH /api/users/<id>` con `{ nombre, rol, estatus }` y, con éxito, recarga el listado conservando búsqueda, filtro y página.
-- [ ] Un nombre de más de 120 caracteres o un `rol`/`estatus` fuera de la lista blanca devuelven `400` y no modifican nada.
-- [ ] El `PATCH` sobre la propia cuenta con `rol` o `estatus` en el cuerpo devuelve `403` y no modifica nada.
-- [ ] Editando la propia cuenta, el modal muestra el aviso y los `select` de rol y estatus están deshabilitados.
-- [ ] Un `admin` puede cambiar el rol y el estatus de **otro** `admin`.
-- [ ] El botón de eliminar abre un modal con el aviso previo que destaca que la alternativa es cambiar solo el estatus.
-- [ ] «Eliminar definitivamente» envía `DELETE /api/users/<id>` y, con éxito, la persona desaparece del listado.
-- [ ] `DELETE` sobre la propia cuenta devuelve `403` y no borra nada.
-- [ ] El botón de reenviar invitación solo aparece en las cuentas con `email_confirmado = false`.
-- [ ] «Reenviar invitación» envía `POST /api/users/<id>/reinvite` y, con éxito, muestra el aviso de confirmación en el modal.
-- [ ] `POST /api/users/<id]/reinvite` sobre una cuenta ya confirmada devuelve `409` y no envía ningún correo.
-- [ ] Tras el reenvío, la cuenta conserva su `id`, su `nombre` y su `rol` en `public.usuarios`, y `invitado_at` se actualiza.
-- [ ] `PATCH /api/users/<id]` responde `401` sin sesión y `403` con una sesión que no es de `admin`.
-- [ ] `PATCH /api/users/[id]` y `DELETE /api/users/[id]` con un `id` inexistente devuelven `404`.
-- [ ] Cambiar el estatus a «inactivo» deja la cuenta baneada: la siguiente petición con su sesión responde 403 (SPEC 08).
-- [ ] El `PATCH` no puede cambiar el correo: el correo no forma parte de los campos aceptados.
-- [ ] A 320 px no hay scroll horizontal en la página con `/dashboard/admin/users` (la tabla puede scrollear dentro de su contenedor `overflow-x-auto`).
-- [ ] No hay errores de consola al abrir y usar los tres modales.
-- [ ] `README.md` y `AGENTS.md` reflejan las tres acciones, las rutas de API nuevas y el árbol final de `src/`.
+- [x] `npm run build` termina correctamente (solo los avisos no fatales `Invalid empty selector` de daisyUI).
+- [x] `npx tsc --noEmit` no reporta errores.
+- [x] `npm run check` (`astro check`) no reporta errores en los `.astro`.
+- [x] La migración añade `email_confirmado` e `invitado_at` a `public.usuarios`, y el backfill deja las filas existentes con el estado real de `auth.users`.
+- [x] Cuando una persona confirma su correo, `public.usuarios.email_confirmado` pasa a `true` sin intervención manual.
+- [x] Con sesión de `admin`, `/dashboard/admin/users` muestra un botón de icono de Lucide por usuario para editar, reenviar y eliminar.
+- [x] Con sesión de un usuario que no es `admin`, la página responde 403 y su HTML no contiene los botones de acción ni los tres modales.
+- [x] El botón de editar abre un `<dialog class="modal">` con los datos de esa persona precargados: nombre, correo, rol y estatus.
+- [x] El correo aparece en solo lectura y el modal explica que para cambiarlo hay que eliminar la cuenta y crear otra.
+- [x] El `select` de rol ofrece exactamente las tres etiquetas de `ROL_INFO` y el de estatus las de `ESTATUS_INFO`.
+- [x] «Guardar cambios» envía `PATCH /api/users/<id>` con `{ nombre, rol, estatus }` y, con éxito, recarga el listado conservando búsqueda, filtro y página.
+- [x] Un nombre de más de 120 caracteres o un `rol`/`estatus` fuera de la lista blanca devuelven `400` y no modifican nada.
+- [x] El `PATCH` sobre la propia cuenta con `rol` o `estatus` en el cuerpo devuelve `403` y no modifica nada.
+- [x] Editando la propia cuenta, el modal muestra el aviso y los `select` de rol y estatus están deshabilitados.
+- [x] Un `admin` puede cambiar el rol y el estatus de **otro** `admin`.
+- [x] El botón de eliminar abre un modal con el aviso previo que destaca que la alternativa es cambiar solo el estatus.
+- [x] «Eliminar definitivamente» envía `DELETE /api/users/<id>` y, con éxito, la persona desaparece del listado.
+- [x] `DELETE` sobre la propia cuenta devuelve `403` y no borra nada.
+- [x] El botón de reenviar invitación solo aparece en las cuentas con `email_confirmado = false`.
+- [x] «Reenviar invitación» envía `POST /api/users/<id>/reinvite` y, con éxito, muestra el aviso de confirmación en el modal.
+- [x] `POST /api/users/<id]/reinvite` sobre una cuenta ya confirmada devuelve `409` y no envía ningún correo.
+- [x] Tras el reenvío, la cuenta conserva su `id`, su `nombre` y su `rol` en `public.usuarios`, y `invitado_at` se actualiza.
+- [x] `PATCH /api/users/<id]` responde `401` sin sesión y `403` con una sesión que no es de `admin`.
+- [x] `PATCH /api/users/[id]` y `DELETE /api/users/[id]` con un `id` inexistente devuelven `404`.
+- [x] Cambiar el estatus a «inactivo» deja la cuenta baneada: la siguiente petición con su sesión responde 403 (SPEC 08).
+- [x] El `PATCH` no puede cambiar el correo: el correo no forma parte de los campos aceptados.
+- [x] A 320 px no hay scroll horizontal en la página con `/dashboard/admin/users` (la tabla puede scrollear dentro de su contenedor `overflow-x-auto`).
+- [x] No hay errores de consola al abrir y usar los tres modales.
+- [x] `README.md` y `AGENTS.md` reflejan las tres acciones, las rutas de API nuevas y el árbol final de `src/`.
 
 ## Decisiones tomadas y descartadas
 
@@ -393,20 +393,31 @@ src/
 
 ## Verificación
 
-> Pendiente de la implementación. La tabla se rellenará con la evidencia de cada criterio (Playwright, `npm run build`, `npx tsc --noEmit`, `npm run check` y la prueba real de extremo a extremo).
+> Ejecutada el 2026-11-14 sobre la rama `spec-10-edicion-borrado-y-reenvio-invitacion` (`99b9fec`). Método: servidor de desarrollo (`npx astro dev`), Playwright (sesión real de `admin`), MCP de Supabase en modo lectura, `npm run build`, `npx tsc --noEmit` y `npm run check`.
+>
+> **Mutaciones autorizadas y revertidas.** Para probar el 403 de un no-`admin`, el baneo por estatus, el `DELETE` real y la confirmación del correo se crearon tres cuentas efímeras (`e2e-verificacion@example.com`, `e2e-confirmacion@example.com`, `e2e-admin@example.com`) y se promovió `charly@google.com` a `admin` de forma temporal. Todas se borraron o revirtieron: el estado final es 5 cuentas reales, 1 `admin`, 0 filas temporales y `public.usuarios` en sync con `auth.users` (5/5). Único efecto permanente: `jimmyraq@gmail.com.invitado_at` pasó a `2026-11-14 13:12:40 UTC` por el reenvío real autorizado.
 
 | Criterio | Estado | Evidencia | Notas |
 | --- | --- | --- | --- |
-| `npm run build` termina correctamente | ⏳ | — | — |
-| `npx tsc --noEmit` no reporta errores | ⏳ | — | — |
-| `npm run check` no reporta errores | ⏳ | — | — |
-| La migración y el backfill dejan el estado correcto | ⏳ | — | — |
-| Confirmar el correo pasa `email_confirmado` a `true` | ⏳ | — | — |
-| Los botones de icono aparecen para el `admin` y no para los demás | ⏳ | — | — |
-| El modal de edición precarga los datos y bloquea rol/estatus propios | ⏳ | — | — |
-| El `PATCH` valida el cuerpo y protege la propia cuenta | ⏳ | — | — |
-| El modal de eliminación avisa de la alternativa del estatus | ⏳ | — | — |
-| El `DELETE` borra la cuenta y protege la propia | ⏳ | — | — |
-| El reenvío solo se ofrece a cuentas sin confirmar y conserva el `id` | ⏳ | — | — |
-| Sin scroll horizontal a 320 px y sin errores de consola | ⏳ | — | — |
-| `README.md` y `AGENTS.md` al día | ⏳ | — | — |
+| `npm run build` termina correctamente | ✅ | `BUILD_EXIT=0`; solo los 2 avisos no fatales `Invalid empty selector` de daisyUI 5.7.50 | — |
+| `npx tsc --noEmit` no reporta errores | ✅ | `TSC_EXIT=0`, sin salida | — |
+| `npm run check` no reporta errores | ✅ | `astro check` → «Result (40 files): 0 errors, 0 warnings, 0 hints», `CHECK_EXIT=0` | — |
+| La migración y el backfill dejan el estado correcto | ✅ | MCP: `public.usuarios` tiene `email_confirmado boolean not null default false` e `invitado_at timestamptz`; el trigger `on_auth_user_invitation_changed` existe sobre `auth.users` con el `when` del spec. Contraste de las 5 filas: `email_confirmado = (a.email_confirmed_at is not null)` y `invitado_at IS NOT DISTINCT FROM a.invited_at` → 5/5 coinciden | — |
+| Confirmar el correo pasa `email_confirmado` a `true` | ✅ | Cuenta efímera `e2e-confirmacion@example.com`: tras `generateLink` el perfil quedó `email_confirmado=false`, `invitado_at=13:14:15`; al abrir `/auth/confirm?token_hash=…&type=invite` (redirección a `/auth/update-password`) el trigger puso `email_confirmado=true` (13:14:20) sin intervención manual | Cuenta borrada al terminar |
+| Los botones de icono aparecen para el `admin` y no para los demás | ✅ | Sesión `admin`: 6 botones `data-accion="editar"`, 1 `data-accion="reenviar"` (solo la cuenta sin confirmar) y 6 `data-accion="eliminar"`. Sesión `capturador`: `GET /dashboard/admin/users` → **403** y el HTML **no** contiene `users-edit-modal`, `users-delete-modal`, `users-resend-modal`, `users-invite-modal`, ni `data-accion="editar\|eliminar\|reenviar"`, ni la tabla; muestra «Acceso denegado» | — |
+| El modal de edición precarga los datos y bloquea rol/estatus propios | ✅ | Playwright: `#users-edit-modal` con `nombre`, `email` (`readonly=true`), `rol` y `estatus` iguales a los de la fila; `select` de rol = Capturador/Supervisor/Administrador y de estatus = Activo/Inactivo (exactamente `ROL_INFO` y `ESTATUS_INFO`). En la fila propia: aviso visible «No puedes cambiar tu propio rol ni tu estatus.» y ambos `select` con `disabled=true` | — |
+| El `PATCH` valida el cuerpo y protege la propia cuenta | ✅ | `nombre` de 121 caracteres → 400; `rol` inválido → 400; `estatus` inválido → 400; `nombre` vacío → 400; cuerpo no-JSON → 400; `PATCH` sobre la propia cuenta con `rol` → 403 «No puedes cambiar tu propio rol ni tu estatus.»; con `estatus` → 403; `email` en el cuerpo → 200 y el correo **no** cambió en `public.usuarios` ni en `auth.users` | Los 400/403 no modificaron ninguna fila (consulta de contraste posterior) |
+| El modal de eliminación avisa de la alternativa del estatus | ✅ | Texto «Vas a eliminar definitivamente a Jimmy Raq (jimmyraq@gmail.com). Se borrará su cuenta y no podrá volver a entrar.» + `alert alert-warning` «Si solo necesitas quitarle el acceso, cambia su estatus a «Inactivo»: la cuenta se conserva y puede reactivarse después.»; botones «Cancelar» y «Eliminar definitivamente» (`btn-error`) | — |
+| El `DELETE` borra la cuenta y protege la propia | ✅ | `DELETE` sobre la propia cuenta → 403 «No puedes eliminar tu propia cuenta.»; `DELETE` de un id inexistente → 404. `DELETE` real desde el modal sobre la cuenta efímera → 200; la tabla pasó de 6 a 5 filas y el correo desapareció; en cascada quedaron 0 filas en `auth.users` y 0 en `public.usuarios` para ese id | Cuenta efímera, borrada por la propia app |
+| El reenvío solo se ofrece a cuentas sin confirmar y conserva el `id` | ✅ | El botón `Send` solo aparece en la fila con `email_confirmado=false`; `POST /api/users/<id>/reinvite` sobre una cuenta confirmada → **409** «Esta cuenta ya validó su correo.» (sin correo) y sobre un id inexistente → 404. Reenvío real a `jimmyraq@gmail.com` → 200 `{"ok":true}`, el modal muestra «Invitación reenviada.» y ofrece «Cerrar y ver el listado»; en `auth.users` se renovaron `confirmation_token`, `confirmation_sent_at` e `invited_at` (13:12:40) y el trigger propagó `invitado_at` a `public.usuarios`; `id`, `nombre` y `rol` intactos | Comportamiento de GoTrue contrastado con su fuente (`internal/api/mail.go`, rama `InviteVerification`: reutiliza el usuario no confirmado y renueva el token; solo devuelve `email_exists` si está confirmado) |
+| Sin scroll horizontal a 320 px y sin errores de consola | ✅ | Viewport 320 px: `documentElement.scrollWidth (305) === clientWidth (305)` → la página no scrollea; la tabla sí, dentro de su contenedor `overflow-x-auto` (663 px de contenido en 225 px visibles). Playwright: 0 errores y 0 avisos de consola al abrir y cerrar los tres modales | — |
+| `README.md` y `AGENTS.md` al día | ✅ | `README.md`: sección «Edición, reenvío de invitación y borrado de usuarios» con las tres acciones, la tabla de códigos de respuesta, las tres rutas de API y ejemplos `curl`; el árbol de `src/` incluye `UsersEditModal`/`UsersDeleteModal`/`UsersResendModal`, `users-admin.ts` y `api/users/**`; se retira el pendiente «Gestión de usuarios dentro del panel». `AGENTS.md`: árbol actualizado, `ESTATUS_VALUES`, `users-admin.ts`, `on_auth_user_invitation_changed` y las reglas de seguridad de `/api/users/**` | — |
+
+### Matices de la verificación
+
+- **Códigos extra:** `GET /api/users/<id>` y `PUT` devuelven `405` con la cabecera `Allow`, y un `id` que no es un UUID devuelve `404` (no se filtra el formato del identificador).
+- **Códigos de la API con sesión de `capturador`:** `PATCH`, `DELETE` y `POST .../reinvite` devuelven `403` «Se requiere rol de administrador.» (no `401`, porque sí hay sesión).
+- **Códigos de la API sin sesión:** los tres devuelven `401` «No autorizado.».
+- **Reenvío con una cuenta ya confirmada:** se rechaza con `409` **antes** de generar el enlace, así que no sale ningún correo; además, si GoTrue devolviera `email_exists`, el endpoint lo mapea al mismo `409`.
+- **`email_confirmado` y `invitado_at`:** el único disparador es `on_auth_user_invitation_changed` sobre `auth.users`; no hay recursión con `on_usuarios_estatus_changed` porque cada uno escribe columnas que el otro no toca.
+- **Estado final de la base de datos tras la verificación:** 5 usuarios en `auth.users` y 5 perfiles en `public.usuarios`, 1 `admin` (`jaime@google.com`), 0 cuentas de prueba y las 5 filas sincronizadas con `auth.users`.
