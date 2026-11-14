@@ -34,7 +34,7 @@ const result = isAdmin
 		<AppNavbar />
 
 		<main class="flex flex-1 flex-col items-center justify-start gap-4 p-4 sm:justify-center sm:p-6">
-			<AdminUsersPanel denied={!isAdmin} result={result} />
+			<AdminUsersPanel denied={!isAdmin} result={result} currentUserId={claims.sub} />
 		</main>
 	</div>
 </BaseLayout>
