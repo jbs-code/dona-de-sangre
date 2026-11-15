@@ -1,4 +1,5 @@
 ---
+import { UserPlus } from '@lucide/astro'
 import AlertError from '../../../components/ui/AlertError.astro'
 import { USERS_PER_PAGE, type UsersListResult } from '../lib/users-list'
 import UsersDeleteModal from './UsersDeleteModal.astro'
@@ -31,6 +32,7 @@ const autorizado = !denied && result !== undefined
 			{
 				autorizado && (
 					<button type="button" class="btn btn-primary btn-sm" data-invite-open>
+						<UserPlus size={16} />
 						Agregar usuario
 					</button>
 				)
