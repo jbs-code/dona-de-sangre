@@ -20,6 +20,8 @@
 ## Structure
 
 ```text
+scripts/
+└── seed-fake-users.mjs         # crea 17 usuarios ficticios (npm run seed:users)
 src/
 ├── middleware.ts                          # session refresh + /dashboard protection + status block
 ├── env.d.ts                               # astro:env types + App.Locals (supabase, claims, currentUser)
@@ -101,6 +103,7 @@ Rules:
 ## Commands
 
 - `npm run dev` / `npm run build` / `npm run preview`.
+- `npm run seed:users` siembra 17 usuarios ficticios (`@example.com`) con roles y estatus variados. Es idempotente: omite los correos que ya existen. Usa `SUPABASE_SECRET_API_KEY` desde `.env` y no envía correos.
 - There are no test or lint scripts. `npm run build` is the main verification step; `npm run check` (`astro check`) type-checks the `.astro` frontmatter and `npx tsc --noEmit` covers `src/**/*.ts`.
 - `npx tsc --noEmit` does **not** check `.astro` files: it only covers `src/**/*.ts`. Frontmatter errors in pages and components need `npm run check` (`@astrojs/check` + `typescript` are declared devDependencies).
 - `astro` is not on PATH here: bare `astro ...` fails, so always use `npx astro ...`.

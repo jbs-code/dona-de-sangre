@@ -10,7 +10,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "astro": "astro"
+    "astro": "astro",
+    "seed:users": "node --env-file=.env scripts/seed-fake-users.mjs"
   },
   "dependencies": {
     "@astrojs/netlify": "^8.2.12",
