@@ -5,8 +5,9 @@ import type { EmailOtpType } from '@supabase/supabase-js';
 
 const DEFAULT_NEXT = '/auth/update-password';
 // Genérico a propósito: no revela si el correo existe ni distingue caducado de usado.
+// Sirve igual al enlace de invitación y al de recuperación de contraseña.
 const ERROR_MESSAGE =
-	'El enlace no es válido, ya se usó o ha caducado. Si ha caducado, pide una nueva invitación al administrador.';
+	'El enlace no es válido, ya se usó o ha caducado. Solicita uno nuevo: usa «¿Olvidaste tu contraseña?» o pide una invitación al administrador.';
 
 // Solo rutas internas: ni URL absoluta ni host encubierto (// o /\).
 function sanitizeNext(value: string | null): string {
