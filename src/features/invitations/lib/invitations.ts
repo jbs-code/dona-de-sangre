@@ -1,7 +1,7 @@
+import { EMAIL_PATTERN, normalizeEmail } from '../../../lib/email';
 import { ROL_VALUES, type Rol } from '../../../lib/roles';
 import { createSupabaseAdminClient } from '../../../lib/supabase-admin';
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NOMBRE_MAX_LENGTH = 120;
 const DEFAULT_ROL: Rol = 'capturador';
 const GENERIC_INVITE_ERROR = 'No se pudo generar la invitación.';
@@ -58,7 +58,7 @@ export async function generateInviteLink(email: string): Promise<GenerateInviteL
 export function parseInviteInput(body: unknown): ParseInviteResult {
   const payload = (body ?? {}) as Record<string, unknown>;
 
-  const email = typeof payload.email === 'string' ? payload.email.trim().toLowerCase() : '';
+  const email = normalizeEmail(payload.email);
   if (!EMAIL_PATTERN.test(email)) {
     return { ok: false, error: 'Correo electrónico no válido.' };
   }
