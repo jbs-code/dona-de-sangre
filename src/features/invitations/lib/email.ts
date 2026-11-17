@@ -1,5 +1,4 @@
-import nodemailer from 'nodemailer';
-import { SMTP_HOST, SMTP_PASS, SMTP_PORT, SMTP_USER } from 'astro:env/server';
+import { createSmtpTransport, SMTP_FROM } from '../../../lib/smtp';
 
 const CONFIRM_PATH = '/auth/confirm';
 const NEXT_PATH = '/auth/update-password';
@@ -62,19 +61,10 @@ function renderHtml({ nombre, email, url }: { nombre: string; email: string; url
 
 export async function sendInviteEmail(input: InviteEmailInput): Promise<void> {
   const url = buildConfirmUrl(input);
-  const transport = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: Number(SMTP_PORT),
-    secure: Number(SMTP_PORT) === 465, // TLS directo en 465
-    auth: {
-      user: SMTP_USER,
-      // Google ignora los espacios de la contraseña de aplicación
-      pass: SMTP_PASS.replaceAll(' ', '')
-    }
-  });
+  const transport = createSmtpTransport();
 
   await transport.sendMail({
-    from: `"Dona de Sangre" <${SMTP_USER}>`,
+    from: SMTP_FROM,
     to: input.email,
     subject: 'Invitación a Dona de Sangre',
     text: renderText({ nombre: input.nombre, email: input.email, url }),
