@@ -11,7 +11,7 @@ import {
 } from '../../../features/auth/lib/recovery';
 import { sendRecoveryEmail } from '../../../features/auth/lib/recovery-email';
 
-const RECOVERY_PATH = '/auth/recuperar';
+const RECOVERY_PATH = '/auth/forgot-password';
 const SENT_URL = `${RECOVERY_PATH}?estado=enviado`;
 const INVALID_EMAIL_URL = `${RECOVERY_PATH}?error=email_invalido`;
 const SEND_FAILED_URL = `${RECOVERY_PATH}?error=envio_fallido`;

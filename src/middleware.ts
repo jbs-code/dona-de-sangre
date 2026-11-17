@@ -7,7 +7,7 @@ import { createSupabaseServerClient } from './lib/supabase';
 
 const DASHBOARD_PATH = '/dashboard';
 const LOGIN_PATH = '/auth/login';
-const DISABLED_ACCOUNT_PATH = '/cuenta-desactivada';
+const DISABLED_ACCOUNT_PATH = '/account-deactivated';
 const DISABLED_ACCOUNT_MESSAGE = 'Tu cuenta está desactivada. Contacta con el administrador.';
 
 export const onRequest = defineMiddleware(async (context, next) => {
