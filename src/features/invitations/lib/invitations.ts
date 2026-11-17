@@ -1,5 +1,5 @@
 import { ROL_VALUES, type Rol } from '../../../lib/roles';
-import { createSupabaseAdminClient } from './supabase-admin';
+import { createSupabaseAdminClient } from '../../../lib/supabase-admin';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NOMBRE_MAX_LENGTH = 120;

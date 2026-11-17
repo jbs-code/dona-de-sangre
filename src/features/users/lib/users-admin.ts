@@ -1,7 +1,7 @@
 import type { Database } from '../../../lib/database.types';
 import { ESTATUS_VALUES, type Estatus } from '../../../lib/estatus';
 import { ROL_VALUES, type Rol } from '../../../lib/roles';
-import { createSupabaseAdminClient } from '../../invitations/lib/supabase-admin';
+import { createSupabaseAdminClient } from '../../../lib/supabase-admin';
 
 const NOMBRE_MAX_LENGTH = 120;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
