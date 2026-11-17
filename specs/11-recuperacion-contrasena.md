@@ -17,13 +17,13 @@ Este spec cierra ese hueco reutilizando todo lo que ya funciona: el patrón de c
 
 **Incluido:**
 
-- Página `/auth/recuperar` con un único campo de correo y un botón de envío.
+- Página `/auth/forgot-password` con un único campo de correo y un botón de envío.
 - Ruta de API `POST /api/auth/recovery` que valida la entrada, genera el enlace con la clave secreta y envía el correo con el SMTP propio.
 - Correo de recuperación con un enlace de un solo uso que apunta a `/auth/confirm?token_hash=…&type=recovery&next=/auth/update-password?motivo=recuperacion`.
 - El enlace se envía **siempre al correo registrado** de la cuenta (`public.usuarios.email`): el correo que la persona escribe en el formulario solo sirve para localizar la cuenta y confirmar cuál es.
 - Respuesta **genérica** idéntica tanto si el correo está registrado como si no: no se revela la existencia de la cuenta.
 - Límite de frecuencia: un envío por correo cada 60 s y cinco peticiones por IP cada 10 minutos.
-- Enlace de «¿Olvidaste tu contraseña?» del login apuntando a `/auth/recuperar`.
+- Enlace de «¿Olvidaste tu contraseña?» del login apuntando a `/auth/forgot-password`.
 - Copy de «contraseña nueva» en `/auth/update-password` cuando el flujo es de recuperación.
 - Refactor compartido: `createSupabaseAdminClient()` pasa a `src/lib/` (lo usan invitaciones, usuarios y recuperación) y el transporte SMTP se extrae a `src/lib/smtp.ts`.
 - Actualización de `README.md` y `AGENTS.md`.
@@ -76,7 +76,7 @@ Los dos son el mismo valor cuando la cuenta existe: la búsqueda es por correo, 
 
 ### Los estados de la página
 
-La página `/auth/recuperar` no guarda estado en el servidor: el estado viaja en la URL, como en el resto de la aplicación.
+La página `/auth/forgot-password` no guarda estado en el servidor: el estado viaja en la URL, como en el resto de la aplicación.
 
 | Parámetro | Significado | Lo ve la persona |
 | --- | --- | --- |
@@ -127,7 +127,7 @@ export type ParseRecoveryResult =
 
 ## Comportamiento
 
-### La página `/auth/recuperar`
+### La página `/auth/forgot-password`
 
 - Reutiliza `AuthCard` y `FormField` como el resto de las pantallas de acceso.
 - Un único campo `email` (`type="email"`, `required`, `autocomplete="email"`) con la etiqueta «Correo» y una ayuda debajo: «Escribe el correo con el que te registraste: el enlace se enviará a ese mismo correo».
@@ -142,13 +142,13 @@ export type ParseRecoveryResult =
 
 Orden de las comprobaciones:
 
-1. **Formato.** El correo se normaliza (`trim` + `toLowerCase`) y se valida con el mismo patrón que las invitaciones. Si no es válido → `303` a `/auth/recuperar?error=email_invalido`.
-2. **Límite por IP.** Si la IP superó las cinco peticiones en la ventana → se registra en el log y se responde `303` a `/auth/recuperar?estado=enviado` (la misma respuesta de éxito: el límite no puede revelar si la cuenta existe).
-3. **Cooldown por correo.** Si ese correo ya recibió un envío hace menos de 60 s → se registra en el log y se responde `303` a `/auth/recuperar?estado=enviado`.
-4. **Perfil.** Con el cliente admin se lee la fila de `public.usuarios` por correo. Si no existe, o si `email_confirmado = false`, o si `estatus = 'inactivo'` → se registra en el log y se responde `303` a `/auth/recuperar?estado=enviado` (sin correo).
-5. **Token.** `admin.auth.admin.generateLink({ type: 'recovery', email })` devuelve `properties.hashed_token`. Si falla, se registra el error y se responde `303` a `/auth/recuperar?estado=enviado`.
-6. **Correo.** `sendRecoveryEmail()` envía el mensaje **a `perfil.email`**, el correo registrado de la cuenta. Si el SMTP falla, se registra el error y se responde `303` a `/auth/recuperar?error=envio_fallido`. Este error **sí** se muestra: un fallo de SMTP es global, no depende de que la cuenta exista.
-7. **Éxito.** Se marca el cooldown de ese correo y se responde `303` a `/auth/recuperar?estado=enviado`.
+1. **Formato.** El correo se normaliza (`trim` + `toLowerCase`) y se valida con el mismo patrón que las invitaciones. Si no es válido → `303` a `/auth/forgot-password?error=email_invalido`.
+2. **Límite por IP.** Si la IP superó las cinco peticiones en la ventana → se registra en el log y se responde `303` a `/auth/forgot-password?estado=enviado` (la misma respuesta de éxito: el límite no puede revelar si la cuenta existe).
+3. **Cooldown por correo.** Si ese correo ya recibió un envío hace menos de 60 s → se registra en el log y se responde `303` a `/auth/forgot-password?estado=enviado`.
+4. **Perfil.** Con el cliente admin se lee la fila de `public.usuarios` por correo. Si no existe, o si `email_confirmado = false`, o si `estatus = 'inactivo'` → se registra en el log y se responde `303` a `/auth/forgot-password?estado=enviado` (sin correo).
+5. **Token.** `admin.auth.admin.generateLink({ type: 'recovery', email })` devuelve `properties.hashed_token`. Si falla, se registra el error y se responde `303` a `/auth/forgot-password?estado=enviado`.
+6. **Correo.** `sendRecoveryEmail()` envía el mensaje **a `perfil.email`**, el correo registrado de la cuenta. Si el SMTP falla, se registra el error y se responde `303` a `/auth/forgot-password?error=envio_fallido`. Este error **sí** se muestra: un fallo de SMTP es global, no depende de que la cuenta exista.
+7. **Éxito.** Se marca el cooldown de ese correo y se responde `303` a `/auth/forgot-password?estado=enviado`.
 
 El correo escrito en el formulario **no** se usa como destinatario: se usa para encontrar la fila. El destinatario es siempre `public.usuarios.email` de esa fila.
 
@@ -223,8 +223,8 @@ src/
 └── pages/
     ├── auth/
     │   ├── confirm.astro                          # MODIFICADO: mensaje genérico para invitación y recuperación
-    │   ├── login.astro                            # MODIFICADO: el enlace apunta a /auth/recuperar
-    │   ├── recuperar.astro                        # NUEVO: formulario y estados
+    │   ├── login.astro                            # MODIFICADO: el enlace apunta a /auth/forgot-password
+    │   ├── forgot-password.astro                        # NUEVO: formulario y estados
     │   └── update-password.astro                  # MODIFICADO: copy de contraseña nueva
     └── api/
         └── auth/
@@ -244,8 +244,8 @@ src/
 | `src/features/auth/lib/recovery-email.ts` | `sendRecoveryEmail()`: arma el texto y el HTML del correo, escapa el nombre, el correo y el enlace, y lo envía con el transporte de `src/lib/smtp.ts`. |
 | `src/features/auth/lib/rate-limit.ts` | Cooldown por correo y ventana por IP, con el estado en memoria del proceso. |
 | `src/pages/api/auth/recovery.ts` | Orquestación: valida, aplica los límites, busca el perfil, genera el enlace, envía el correo y responde con la redirección. |
-| `src/pages/auth/recuperar.astro` | La página con el formulario y los tres estados. |
-| `src/pages/auth/login.astro` | El enlace «¿Olvidaste tu contraseña?» pasa de `href="#"` a `href="/auth/recuperar"`. |
+| `src/pages/auth/forgot-password.astro` | La página con el formulario y los tres estados. |
+| `src/pages/auth/login.astro` | El enlace «¿Olvidaste tu contraseña?» pasa de `href="#"` a `href="/auth/forgot-password"`. |
 | `src/pages/auth/confirm.astro` | El mensaje de «enlace no válido» se generaliza para que sirva a la invitación y a la recuperación. |
 | `src/pages/auth/update-password.astro` | Título y párrafo distintos cuando el flujo es de recuperación (`?motivo=recuperacion`). |
 
@@ -258,7 +258,7 @@ src/
 5. Crear `src/features/auth/lib/recovery.ts` con `parseRecoveryInput()`, `findRecoverableUser()` y `generateRecoveryLink()`. Verificar con `npx tsc --noEmit`.
 6. Crear `src/features/auth/lib/recovery-email.ts` con `sendRecoveryEmail()`. Verificar con `npx tsc --noEmit` y `npm run build`.
 7. Crear `src/pages/api/auth/recovery.ts` con el `POST`. Verificar con `npx tsc --noEmit` y `npm run build`.
-8. Crear `src/pages/auth/recuperar.astro`. Verificar con `npm run build` y `npm run check`.
+8. Crear `src/pages/auth/forgot-password.astro`. Verificar con `npm run build` y `npm run check`.
 9. Modificar `src/pages/auth/login.astro` (el enlace) y `src/pages/auth/confirm.astro` (mensaje genérico). Verificar con `npm run build` y `npm run check`.
 10. Modificar `src/pages/auth/update-password.astro` con el copy de contraseña nueva. Verificar con `npm run build` y `npm run check`.
 11. Actualizar `README.md` (estado del proyecto, rutas, API, estructura) y `AGENTS.md` (árbol de `src/`, reglas de seguridad, lista de specs 01–11).
@@ -268,8 +268,8 @@ src/
 - [x] `npm run build` termina correctamente (solo los avisos no fatales `Invalid empty selector` de daisyUI).
 - [x] `npx tsc --noEmit` no reporta errores.
 - [x] `npm run check` (`astro check`) no reporta errores en los `.astro`.
-- [x] El enlace «¿Olvidaste tu contraseña?» del login apunta a `/auth/recuperar`.
-- [x] `/auth/recuperar` muestra un campo de correo, un botón «Enviar enlace» y un enlace de vuelta al login.
+- [x] El enlace «¿Olvidaste tu contraseña?» del login apunta a `/auth/forgot-password`.
+- [x] `/auth/forgot-password` muestra un campo de correo, un botón «Enviar enlace» y un enlace de vuelta al login.
 - [x] La ayuda del campo dice que el enlace se envía al correo escrito y la nota del formulario dice que, sin acceso a ese correo, hay que pedir una cuenta nueva al `admin`.
 - [x] Un correo con formato inválido devuelve la página con el mensaje de error y no genera ningún token.
 - [x] Con un correo **no registrado**, la respuesta visible es idéntica a la de un correo registrado y no llega ningún correo.
@@ -289,9 +289,9 @@ src/
 - [x] Un fallo del SMTP se registra en el log del servidor y la página muestra «No se pudo enviar el correo…».
 - [x] El log del servidor registra los casos descartados (correo inexistente, no confirmado, inactivo, límite alcanzado) **sin** el token de recuperación.
 - [x] `GET /api/auth/recovery` devuelve `405` con la cabecera `Allow: POST`.
-- [x] La respuesta del `POST` es una redirección a `/auth/recuperar` con uno de los tres parámetros de estado.
+- [x] La respuesta del `POST` es una redirección a `/auth/forgot-password` con uno de los tres parámetros de estado.
 - [x] El HTML servido no contiene `SUPABASE_SECRET_API_KEY`, `SMTP_PASS` ni el `hashed_token` del enlace.
-- [ ] A 320 px no hay scroll horizontal en `/auth/recuperar`.
+- [x] A 320 px no hay scroll horizontal en `/auth/forgot-password`.
 - [x] No hay errores de JavaScript en la consola al abrir y enviar el formulario.
 - [x] `README.md` y `AGENTS.md` reflejan la recuperación, la ruta nueva y el árbol final de `src/`.
 
@@ -354,10 +354,10 @@ src/
 | `npm run build` termina correctamente | ✅ | «Complete!» en 14,45 s | Solo los 2 avisos no fatales `Invalid empty selector` de daisyUI |
 | `npx tsc --noEmit` no reporta errores | ✅ | Sin salida | — |
 | `npm run check` no reporta errores | ✅ | `Result (48 files): 0 errors, 0 warnings, 0 hints` | — |
-| El enlace del login lleva a `/auth/recuperar` | ✅ | HTML servido: `href="/auth/recuperar"` junto a «¿Olvidaste tu contraseña?» | — |
+| El enlace del login lleva a `/auth/forgot-password` | ✅ | HTML servido: `href="/auth/forgot-password"` junto a «¿Olvidaste tu contraseña?» | — |
 | La página muestra el formulario y los tres estados | ✅ | Playwright: campo «Correo», botón «Enviar enlace», enlace «Volver a iniciar sesión», ayuda y nota; `?estado=enviado` → `alert-success`, `?error=email_invalido` y `?error=envio_fallido` → `alert-error` | El botón pasa a «Enviando…» y se deshabilita al enviar |
-| Un correo inválido no genera token y muestra el error | ✅ | `POST email=no-valido` (y `email=` vacío) → `303 /auth/recuperar?error=email_invalido` | La ruta responde antes de `consumeIpSlot` y de `generateLink` |
-| La respuesta no revela si la cuenta existe | ✅ | No registrado, sin confirmar, inactivo y registrado activo → los cuatro `303 /auth/recuperar?estado=enviado` | Solo el fallo de SMTP cambia la respuesta visible |
+| Un correo inválido no genera token y muestra el error | ✅ | `POST email=no-valido` (y `email=` vacío) → `303 /auth/forgot-password?error=email_invalido` | La ruta responde antes de `consumeIpSlot` y de `generateLink` |
+| La respuesta no revela si la cuenta existe | ✅ | No registrado, sin confirmar, inactivo y registrado activo → los cuatro `303 /auth/forgot-password?estado=enviado` | Solo el fallo de SMTP cambia la respuesta visible |
 | Sin correo para cuentas inexistentes, sin confirmar o inactivas | ✅ | Sin `.eml` capturado; log `descartado (not_found)`, `(unconfirmed)` e `(inactive)` | Probado con `nadie@example.com`, `andres.fuentes@example.com` y `david.romero@example.com` |
 | El correo llega al correo registrado de la cuenta | ✅ | `To: alvaro.herrera@example.com` en `mail-2.eml` y `mail-3.eml` | El destinatario es la fila de `public.usuarios`, no otro valor del formulario |
 | El correo se envía desde el SMTP de la aplicación con el asunto correcto | ✅ | `From: Dona de Sangre <…>` y asunto `Restablece tu contraseña - Dona de Sangre` | `SMTP_FROM` de `src/lib/smtp.ts` |
@@ -367,16 +367,16 @@ src/
 | La contraseña antigua deja de servir | ✅ | Antes del cambio se fijó `ViejaSegura123!` por la API admin; tras el flujo, `ViejaSegura123!` → `?error=invalid_credentials` y `NuevaSegura456!` → `/dashboard` | — |
 | El enlace no se puede reutilizar | ✅ | Segunda visita al mismo enlace → «Enlace no válido» (200) y `/dashboard` redirige a `/auth/login?next=%2Fdashboard` | Un cambio de contraseña previo también invalida el token (mismo resultado) |
 | Los límites de frecuencia cortan las peticiones repetidas | ✅ | Mismo correo dos veces seguidas: un solo `.eml`, mismo `303`, log `cooldown por correo activo`; 5 peticiones por IP pasan y la 6.ª se corta con log `límite por IP alcanzado` | Mismo mensaje visible en todos los casos |
-| El fallo de SMTP se registra y se muestra | ✅ | Dev server con `SMTP_PORT=2599` (puerto cerrado) → `303 /auth/recuperar?error=envio_fallido`; log `[auth/recovery] fallo SMTP: Error: connect ECONNREFUSED 127.0.0.1:2599` | — |
+| El fallo de SMTP se registra y se muestra | ✅ | Dev server con `SMTP_PORT=2599` (puerto cerrado) → `303 /auth/forgot-password?error=envio_fallido`; log `[auth/recovery] fallo SMTP: Error: connect ECONNREFUSED 127.0.0.1:2599` | — |
 | El log registra los descartes sin el token | ✅ | `grep` del `token_hash` y del token en el log de la instancia: 0 coincidencias | Solo el motivo y el correo |
 | `GET /api/auth/recovery` responde `405` con `Allow: POST` | ✅ | `405 Method Not Allowed` + `allow: POST` | — |
-| La respuesta del `POST` es una redirección con uno de los tres estados | ✅ | Todos los casos probados responden `303` a `/auth/recuperar` | — |
-| El HTML servido no incluye secretos | ✅ | `/auth/recuperar` y `dist/` sin `sb_secret_`, `SMTP_PASS`, `hashed_token` ni el token de la prueba | — |
+| La respuesta del `POST` es una redirección con uno de los tres estados | ✅ | Todos los casos probados responden `303` a `/auth/forgot-password` | — |
+| El HTML servido no incluye secretos | ✅ | `/auth/forgot-password` y `dist/` sin `sb_secret_`, `SMTP_PASS`, `hashed_token` ni el token de la prueba | — |
 | Sin errores de JavaScript en consola al abrir y enviar | ✅ | Playwright: 0 errores al cargar y al enviar el formulario | — |
-| Sin scroll horizontal a 320 px | ❌ | `document.documentElement.scrollWidth` = 583 px con `clientWidth` = 305 px | Ver «Hallazgos»: la ayuda del formulario usa `class="label"`, que en daisyUI 5 aplica `white-space: nowrap` |
-| `README.md` y `AGENTS.md` al día | ✅ | README: `/auth/recuperar`, `POST /api/auth/recovery`, `src/lib/{email,smtp,supabase-admin}.ts` y `features/auth/lib/*`; AGENTS.md: mismas rutas y reglas de seguridad | — |
+| Sin scroll horizontal a 320 px | ✅ | Playwright a 320 px: `scrollWidth === clientWidth === 320`, párrafo de ayuda con `white-space: normal`, `display: block` y 3 líneas; `consoleErrors: 0` | Resuelto por SPEC 12 (quitar `class="label"` → `class="text-sm opacity-70"`); ver «Hallazgos» |
+| `README.md` y `AGENTS.md` al día | ✅ | README: `/auth/forgot-password`, `POST /api/auth/recovery`, `src/lib/{email,smtp,supabase-admin}.ts` y `features/auth/lib/*`; AGENTS.md: mismas rutas y reglas de seguridad | — |
 
 ### Hallazgos
 
-1. **Scroll horizontal a 320 px (criterio pendiente).** La ayuda del campo usa `<p class="label">` (`src/pages/auth/recuperar.astro`, línea 45). En daisyUI 5 `.label` aplica `display: flex` + `white-space: nowrap`, así que la frase larga no se envuelve y ensancha el documento hasta 583 px (el resto de pantallas de acceso se quedan en 320 px). Arreglo mínimo propuesto: quitar `class="label"` de ese párrafo (por ejemplo `class="text-sm opacity-70"`) o añadir `whitespace-normal`. No se tocó el código porque `spec-verifier` solo edita `specs/**`.
+1. **Scroll horizontal a 320 px (resuelto por SPEC 12).** La ayuda del campo usaba `<p class="label">` (`src/pages/auth/forgot-password.astro`, línea 45). En daisyUI 5 `.label` aplica `display: flex` + `white-space: nowrap`, así que la frase larga no se envolvía y ensanchaba el documento hasta 583 px (el resto de pantallas de acceso se quedan en 320 px). SPEC 12 sustituyó `class="label"` por `class="text-sm opacity-70"`. En la reverificación con Playwright a 320 px: `scrollWidth === clientWidth === 320`, párrafo con `white-space: normal` y `display: block` partido en 3 líneas, `consoleErrors: 0`. El criterio de aceptación correspondiente queda marcado como verificado.
 2. **Efecto de la prueba.** `alvaro.herrera@example.com` (cuenta ficticia del seed) quedó con la contraseña `NuevaSegura456!`. El enlace de recuperación consumido y los tokens emitidos ya no valen.

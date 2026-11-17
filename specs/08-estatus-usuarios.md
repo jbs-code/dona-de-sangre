@@ -20,7 +20,7 @@ El cambio de estatus **no** se hace desde la aplicación: la interfaz de edició
 - Nuevo enum `public.estatus_usuario` (`activo`, `inactivo`) y nueva columna `public.usuarios.estatus`, `not null` con default `activo`.
 - Trigger en base de datos que sincroniza el estatus con `auth.users.banned_until`: al pasar a `inactivo` la cuenta queda baneada en Supabase Auth; al volver a `activo` se levanta el baneo.
 - Comprobación del estatus en el middleware, en **toda** petición con sesión, con cierre de sesión y respuesta 403.
-- Página `/cuenta-desactivada` que sirve ese 403 con el aviso correspondiente.
+- Página `/account-deactivated` que sirve ese 403 con el aviso correspondiente.
 - Columna «Estatus» con badge en la tabla de `/dashboard/admin/users`.
 - Selector «Filtrar por estatus» en el buscador de esa misma pantalla, con el filtro aplicado en la consulta.
 - Regeneración de `src/lib/database.types.ts` y versionado de la migración en `supabase/migrations/`.
@@ -128,10 +128,10 @@ El middleware es el único punto por el que pasan todas las peticiones, así que
 2. Si la fila no existe, la petición sigue adelante: es el comportamiento de hoy («No se encontró tu perfil») y no hay estatus que comprobar.
 3. Si la lectura **falla**, responde **503** y registra el error en el servidor. Se falla cerrado: sin base de datos no se puede verificar el estatus, y abrir la puerta sería justo el fallo que este spec evita.
 4. Si `estatus === 'inactivo'`, cierra la sesión (`supabase.auth.signOut()`, que borra las cookies `httpOnly`) y responde:
-   - **Rutas de página**: 302 a `/cuenta-desactivada`, que responde **403** con el aviso «Tu cuenta está desactivada. Contacta con el administrador.» y un enlace al inicio de sesión.
+   - **Rutas de página**: 302 a `/account-deactivated`, que responde **403** con el aviso «Tu cuenta está desactivada. Contacta con el administrador.» y un enlace al inicio de sesión.
    - **Rutas `/api/*`**: 403 en JSON, `{"error":"Tu cuenta está desactivada. Contacta con el administrador."}`, para no devolver HTML donde el cliente espera JSON.
 
-La ruta `/cuenta-desactivada` está **exenta** de la comprobación: si el cierre de sesión fallara y la cookie sobreviviera, sin la exención la página se redirigiría a sí misma en bucle.
+La ruta `/account-deactivated` está **exenta** de la comprobación: si el cierre de sesión fallara y la cookie sobreviviera, sin la exención la página se redirigiría a sí misma en bucle.
 
 Cerrar la sesión no es un detalle: sin ello, el usuario inactivo seguiría con su cookie y volvería a recibir el mismo 403 en cada página, sin poder alcanzar el login por su cuenta.
 
@@ -190,7 +190,7 @@ src/
 │   ├── estatus.ts                                # NUEVO: tipo Estatus + mapa ESTATUS_INFO
 │   └── roles.ts                                  # sin cambios
 ├── pages/
-│   ├── cuenta-desactivada.astro                  # NUEVO: 403 con el aviso de cuenta desactivada
+│   ├── account-deactivated.astro                  # NUEVO: 403 con el aviso de cuenta desactivada
 │   ├── dashboard/
 │   │   ├── index.astro                           # MODIFICADO: usa locals.currentUser
 │   │   └── admin/
@@ -216,7 +216,7 @@ src/
 | `src/lib/current-user.ts` | `getCurrentUser()` incluye `estatus` y usa `.maybeSingle()`; distingue «sin fila» de «error». |
 | `src/middleware.ts` | Resuelve `Astro.locals.currentUser`, comprueba `estatus`, cierra sesión y responde 403 (o 503 si falla la lectura). |
 | `src/env.d.ts` | Declara `App.Locals.currentUser`. |
-| `src/pages/cuenta-desactivada.astro` | Responde 403 con el aviso y el enlace al login. |
+| `src/pages/account-deactivated.astro` | Responde 403 con el aviso y el enlace al login. |
 | `src/pages/dashboard/index.astro` | Lee `Astro.locals.currentUser` en lugar de consultar la fila. La autorización por rol no cambia. |
 | `src/pages/dashboard/admin/users.astro` | Lee `?estatus`, lo pasa a `listUsers()` y usa `Astro.locals.currentUser` para el rol. |
 | `src/pages/api/invitations.ts` | Comprueba el rol con `Astro.locals.currentUser` en lugar de consultar la fila. |
@@ -233,7 +233,7 @@ src/
 3. Crear `src/lib/estatus.ts` con `Estatus` y `ESTATUS_INFO`. Verificar con `npx tsc --noEmit`.
 4. Ampliar `getCurrentUser()` en `src/lib/current-user.ts` para leer `estatus` y usar `.maybeSingle()`. Verificar con `npx tsc --noEmit` y con una llamada desde el servidor de desarrollo.
 5. Modificar `src/middleware.ts`: resolver `Astro.locals.currentUser` una sola vez por petición con sesión, comprobar `estatus`, cerrar sesión y responder 403 (página o JSON según la ruta), y responder 503 si la lectura falla. Añadir `currentUser` a `App.Locals` en `src/env.d.ts`. Verificar con `npm run build`, `npx tsc --noEmit` y `npm run check`.
-6. Crear `src/pages/cuenta-desactivada.astro` (403, aviso, enlace al login) y eximir esa ruta de la comprobación del middleware. Verificar que se sirve con status 403.
+6. Crear `src/pages/account-deactivated.astro` (403, aviso, enlace al login) y eximir esa ruta de la comprobación del middleware. Verificar que se sirve con status 403.
 7. Actualizar `src/pages/dashboard/index.astro`, `src/pages/dashboard/admin/users.astro` y `src/pages/api/invitations.ts` para consumir `Astro.locals.currentUser`. La autorización por rol sigue en el frontmatter de las páginas. Verificar con `npm run build` y `curl` que los códigos de respuesta no cambian (200, 403 y 302).
 8. Añadir el filtro de estatus al listado: `sanitizeEstatusFilter()` y el filtro `.eq('estatus', …)` en `users-list.ts`, el selector en `UsersSearchForm.astro`, la columna con badge en `UsersTable.astro`, la propagación en `AdminUsersPanel.astro`, los enlaces de `UsersPagination.astro` y la lectura de `?estatus` en `dashboard/admin/users.astro`. Verificar con `npm run build`, `npx tsc --noEmit` y `npm run check`.
 9. Verificar el bloqueo contra la base de datos real: marcar un usuario de prueba como `inactivo` (y restaurar después a `activo`), comprobar con `curl` y Playwright que el login falla con el mensaje genérico, que la sesión existente recibe 403 y que las cookies se borran, y que el filtro y la paginación con `?estatus` funcionan sin scroll horizontal a 320 px ni errores de consola.
@@ -289,7 +289,7 @@ src/
 - **Sí:** al bloquear se cierra la sesión además de responder 403. Sin cerrar la sesión, el usuario conserva la cookie y recibe el mismo 403 en cada página sin poder llegar al login.
 - **Sí:** el login no se toca. `POST /api/auth/login` ya responde `error=invalid_credentials` ante cualquier fallo, así que la cuenta baneada ve el mismo mensaje que una contraseña incorrecta.
 - **No:** un mensaje propio («tu cuenta está desactivada») en el login. Revelaría qué correos existen en el sistema a quien no es el titular de la cuenta.
-- **Sí:** el 403 de página se sirve en una ruta propia, `/cuenta-desactivada`, que responde con status 403. El middleware no puede renderizar el layout de la aplicación.
+- **Sí:** el 403 de página se sirve en una ruta propia, `/account-deactivated`, que responde con status 403. El middleware no puede renderizar el layout de la aplicación.
 - **No:** devolver HTML plano desde el middleware. Perdería el layout y los estilos de la aplicación.
 - **Sí:** si la lectura del estatus falla, se responde 503. Se falla cerrado: sin base de datos no se puede verificar el estatus.
 - **No:** dejar pasar la petición cuando falla la lectura. Abriría la puerta al usuario desactivado justo en el momento en que el sistema no puede comprobarlo.
@@ -313,7 +313,7 @@ src/
 | Quedarse sin ningún `admin` activo | No hay interfaz de cambio de estatus: si se desactiva al único administrador, hay que reactivarlo con un `UPDATE` en el panel de Supabase. Riesgo aceptado en este spec; la interfaz de edición lo resolverá. |
 | El filtro de estatus desincroniza el total y las filas | El mismo `.eq('estatus', …)` se aplica en `countUsers()` y en `fetchUsersPage()`. |
 | Cualquier actualización de la fila dispara el trigger | `when (old.estatus is distinct from new.estatus)`. |
-| El cierre de sesión en el middleware falla y la cookie sobrevive | La ruta `/cuenta-desactivada` está exenta de la comprobación, así que no hay bucle de redirección; además se verifica que tras el 403 la siguiente petición no tiene sesión. |
+| El cierre de sesión en el middleware falla y la cookie sobrevive | La ruta `/account-deactivated` está exenta de la comprobación, así que no hay bucle de redirección; además se verifica que tras el 403 la siguiente petición no tiene sesión. |
 | La cuenta baneada ve un error técnico de Supabase en el login | `POST /api/auth/login` traduce cualquier error a `error=invalid_credentials`; no se muestra el código de error de Supabase. |
 
 ## Qué **no** entra en este spec
@@ -346,8 +346,8 @@ src/
 | `inactivo` deja `banned_until` en el futuro | ✅ | `UPDATE public.usuarios SET estatus = 'inactivo'` → `auth.users.banned_until = 2126-11-13T02:13:18Z` (+100 años) | El trigger `security definer` con `search_path = ''` escribe sin error |
 | `activo` deja `banned_until` en `null` | ✅ | Tras `UPDATE ... SET estatus = 'activo'`: `banned_until = null` | El mismo `UPDATE` restauró el acceso: el login volvió a funcionar |
 | Una cuenta inactiva no puede iniciar sesión | ✅ | `POST /api/auth/login` con la contraseña correcta de la cuenta desactivada → 302 a `/auth/login?error=invalid_credentials`, **sin `Set-Cookie`** | La página muestra «Correo o contraseña incorrectos», el mismo mensaje que con una contraseña errónea |
-| Una sesión activa de una cuenta inactiva recibe 403 y se cierra | ✅ | `GET /dashboard` → 302 a `/cuenta-desactivada` con `Set-Cookie: sb-…-auth-token=; Max-Age=0` | En Playwright la cookie desaparece del navegador: `cookies: []` |
-| La página 403 muestra el aviso y el enlace al login | ✅ | `/cuenta-desactivada` → 403 con «Tu cuenta está desactivada. Contacta con el administrador.» y `href="/auth/login"` | El enlace lleva al login sin bucle de redirección |
+| Una sesión activa de una cuenta inactiva recibe 403 y se cierra | ✅ | `GET /dashboard` → 302 a `/account-deactivated` con `Set-Cookie: sb-…-auth-token=; Max-Age=0` | En Playwright la cookie desaparece del navegador: `cookies: []` |
+| La página 403 muestra el aviso y el enlace al login | ✅ | `/account-deactivated` → 403 con «Tu cuenta está desactivada. Contacta con el administrador.» y `href="/auth/login"` | El enlace lleva al login sin bucle de redirección |
 | Una ruta `/api/*` con sesión inactiva responde 403 en JSON | ✅ | `POST /api/invitations` → 403, `Content-Type: application/json`, `{"error":"Tu cuenta está desactivada. Contacta con el administrador."}` | No devuelve HTML |
 | Un usuario `activo` usa `/dashboard` con normalidad | ✅ | `GET /dashboard` → 200 con «Tu perfil», `jaime`, `jaime@google.com` y el badge «Administrador» | La tarjeta de perfil no muestra el estatus (fuera de alcance) |
 | La autorización por rol no cambia | ✅ | Sesión de `supervisor` en `/dashboard/admin/users` → 403 con «Acceso denegado…» y 0 filas; sin sesión → 302 a `/auth/login?next=%2Fdashboard%2Fadmin%2Fusers` | — |
@@ -361,8 +361,8 @@ src/
 | El contador corresponde al filtro | ✅ | `?estatus=activo` → «Mostrando 1–4 de 4 usuarios»; `?estatus=inactivo` → «Mostrando 1–10 de 12 usuarios»; página 2 → «Mostrando 11–12 de 12 usuarios» | El `.eq('estatus', …)` se aplica en el `count` y en la página de datos |
 | La tabla no tiene acciones sobre un usuario | ✅ | 0 elementos `table td a`, `table td button` o `table td form` | Los únicos botones de la página son «Cerrar sesión» y «Buscar» |
 | Sin scroll horizontal a 320 px | ✅ | Playwright a 320×640: `scrollWidth === clientWidth === 305` en `/dashboard/admin/users` | La tabla se desborda dentro de su contenedor `overflow-x-auto`, sin arrastrar la página |
-| Sin errores de consola | ✅ | `consoleErrors: []` en `/dashboard/admin/users` (320 px y 1280 px) | En `/cuenta-desactivada` el navegador anota el 403 como recurso, no es un error de la aplicación |
-| `README.md` y `AGENTS.md` al día | ✅ | Los dos describen el enum, la columna, el trigger, el bloqueo en dos capas, `/cuenta-desactivada`, el filtro `?estatus=` y el árbol final de `src/` | — |
+| Sin errores de consola | ✅ | `consoleErrors: []` en `/dashboard/admin/users` (320 px y 1280 px) | En `/account-deactivated` el navegador anota el 403 como recurso, no es un error de la aplicación |
+| `README.md` y `AGENTS.md` al día | ✅ | Los dos describen el enum, la columna, el trigger, el bloqueo en dos capas, `/account-deactivated`, el filtro `?estatus=` y el árbol final de `src/` | — |
 
 ### Comprobaciones adicionales
 
@@ -373,7 +373,7 @@ src/
 | La función coincide con la del spec | ✅ | `pg_get_functiondef` devuelve exactamente el `case when new.estatus = 'inactivo' then now() + interval '100 years' else null end` del spec |
 | El baneo impide renovar el token | ✅ | `POST /auth/v1/token?grant_type=refresh_token` con el refresh token de la cuenta baneada → 400 `user_banned` | La sesión muere sola aunque el token de acceso siga siendo válido hasta una hora |
 | El cierre de sesión borra la cookie del navegador | ✅ | Tras el 403, Playwright no muestra ninguna cookie de sesión (`cookies: []`) y `/dashboard` sin cookie responde 302 al login | — |
-| La ruta exempta no se redirige a sí misma | ✅ | `/cuenta-desactivada` responde 403 con o sin sesión | — |
+| La ruta exempta no se redirige a sí misma | ✅ | `/account-deactivated` responde 403 con o sin sesión | — |
 | Matiz del cierre de sesión | ⚠️ | La cookie se borra y el refresh token es rechazado por el baneo, pero las filas de `auth.sessions` no se borran: GoTrue responde 403 `user_banned` a `/logout` para una cuenta baneada y `auth-js` lo trata como «ya cerrada» | El token de acceso sigue siendo válido hasta una hora, pero el navegador ya no lo envía (cookie borrada) y no se puede renovar. No afecta a ningún criterio: el usuario no puede volver a entrar |
 | `/api/invitations` sigue exigiendo rol de `admin` | ✅ | Sin sesión → 401 `{"error":"No autorizado."}`; con sesión de `supervisor` → 403 `{"error":"Se requiere rol de administrador."}` | La comprobación usa `Astro.locals.currentUser.rol` |
 | El middleware resuelve la fila del solicitante una sola vez | ✅ | `src/middleware.ts` llama a `getCurrentUser()` una vez por petición con sesión y expone `Astro.locals.currentUser`; `dashboard/index.astro`, `dashboard/admin/users.astro` y `api/invitations.ts` lo reutilizan | — |

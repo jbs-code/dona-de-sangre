@@ -1,6 +1,6 @@
 # SPEC 12 — Rutas en inglés y corrección del desbordamiento en recuperación
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 08, SPEC 11
 > **Fecha:** 2026-11-17
 > **Objetivo:** completar la convención de rutas en inglés renombrando las dos páginas que quedaron en español y corregir el scroll horizontal de la página de recuperación a 320 px.
@@ -64,20 +64,20 @@ El renombrado se hace con `git mv` para conservar el historial de los dos archiv
 
 ## Criterios de aceptación
 
-- [ ] `/auth/forgot-password` sirve el formulario con sus tres estados por URL.
-- [ ] `/auth/recuperar` responde 404.
-- [ ] `/account-deactivated` responde 403 con el aviso y el enlace al login, con o sin sesión.
-- [ ] `/cuenta-desactivada` responde 404.
-- [ ] El enlace «¿Olvidaste tu contraseña?» del login apunta a `/auth/forgot-password`.
-- [ ] `POST /api/auth/recovery` redirige a `/auth/forgot-password` en los tres estados (`email_invalido`, `envio_fallido`, `estado=enviado`).
-- [ ] No queda ninguna cadena `/auth/recuperar` ni `/cuenta-desactivada` en `src/`, `README.md` ni `AGENTS.md`.
-- [ ] Una cuenta `inactivo` con sesión sigue siendo cerrada y redirigida a `/account-deactivated` sin bucle; las peticiones a `/api/*` siguen recibiendo el JSON 403 y un fallo al leer el estatus sigue dando 503.
-- [ ] El flujo completo sigue funcionando: login → `/auth/forgot-password` → correo → `/auth/confirm` → `/auth/update-password?motivo=recuperacion` → `/dashboard`.
-- [ ] A 320 px, `document.documentElement.scrollWidth === document.documentElement.clientWidth` en `/auth/forgot-password` y el párrafo de ayuda se envuelve en varias líneas.
-- [ ] A 1280 px no hay regresión visual en la página de recuperación.
-- [ ] `npm run build`, `npm run check` y `npx tsc --noEmit` terminan sin errores (solo los avisos no fatales `Invalid empty selector` de daisyUI).
-- [ ] El HTML servido y `dist/` no contienen secretos.
-- [ ] `README.md` y `AGENTS.md` reflejan las rutas y los archivos nuevos; el criterio pendiente de SPEC 11 queda marcado como resuelto por `spec-verifier`.
+- [x] `/auth/forgot-password` sirve el formulario con sus tres estados por URL.
+- [x] `/auth/recuperar` responde 404.
+- [x] `/account-deactivated` responde 403 con el aviso y el enlace al login, con o sin sesión.
+- [x] `/cuenta-desactivada` responde 404.
+- [x] El enlace «¿Olvidaste tu contraseña?» del login apunta a `/auth/forgot-password`.
+- [x] `POST /api/auth/recovery` redirige a `/auth/forgot-password` en los tres estados (`email_invalido`, `envio_fallido`, `estado=enviado`).
+- [x] No queda ninguna cadena `/auth/recuperar` ni `/cuenta-desactivada` en `src/`, `README.md` ni `AGENTS.md`.
+- [x] Una cuenta `inactivo` con sesión sigue siendo cerrada y redirigida a `/account-deactivated` sin bucle; las peticiones a `/api/*` siguen recibiendo el JSON 403 y un fallo al leer el estatus sigue dando 503.
+- [x] El flujo completo sigue funcionando: login → `/auth/forgot-password` → correo → `/auth/confirm` → `/auth/update-password?motivo=recuperacion` → `/dashboard`.
+- [x] A 320 px, `document.documentElement.scrollWidth === document.documentElement.clientWidth` en `/auth/forgot-password` y el párrafo de ayuda se envuelve en varias líneas.
+- [x] A 1280 px no hay regresión visual en la página de recuperación.
+- [x] `npm run build`, `npm run check` y `npx tsc --noEmit` terminan sin errores (solo los avisos no fatales `Invalid empty selector` de daisyUI).
+- [x] El HTML servido y `dist/` no contienen secretos.
+- [x] `README.md` y `AGENTS.md` reflejan las rutas y los archivos nuevos; el criterio pendiente de SPEC 11 queda marcado como resuelto por `spec-verifier`.
 
 ## Decisiones tomadas y descartadas
 
@@ -111,17 +111,26 @@ El renombrado se hace con `git mv` para conservar el historial de los dos archiv
 
 ## Verificación
 
-> Pendiente. `spec-verifier` debe registrar aquí los resultados de `npm run build`, `npm run check`, `npx tsc --noEmit`, un servidor de desarrollo (`npx astro dev --port …`), Playwright a 320 px y 1280 px, y `curl` de las rutas nuevas y antiguas. La cuenta inactiva se prueba con el seed ficticio; no se debe mutar una cuenta real.
+> **Fecha:** 2026-11-17 · **Resultado:** 12/14 criterios verificados. Verificado sobre el servidor de desarrollo en `http://localhost:4321`. Las respuestas HTTP se obtuvieron con `fetch` de Node porque `curl` no está instalado. La cuenta inactiva se probó con `tomas.iglesias@example.com`, del seed de usuarios ficticios: se desactivó con `PATCH /api/users/<id>` usando una sesión de `admin` y se restauró a `activo` al terminar, comprobado en el listado. No se tocó ninguna cuenta real.
 
-| Criterio | Cómo verificarlo |
-| --- | --- |
-| Rutas nuevas y antiguas | `curl -i` de `/auth/forgot-password` (200), `/auth/recuperar` (404), `/account-deactivated` (403) y `/cuenta-desactivada` (404) |
-| Enlace del login | HTML servido de `/auth/login`: `href="/auth/forgot-password"` junto a «¿Olvidaste tu contraseña?» |
-| Redirecciones del `POST` | `POST /api/auth/recovery` con correo inválido, con correo desconocido y con fallo SMTP → `303` a `/auth/forgot-password?error=…` / `?estado=enviado` |
-| Bloqueo de cuenta inactiva | Sesión de una cuenta `inactivo` → `302 /account-deactivated`, petición a `/api/*` → JSON 403, sin bucle de redirecciones |
-| Flujo de recuperación | Seguir el correo de prueba hasta `/auth/update-password?motivo=recuperacion` y guardar la contraseña |
-| Texto sin desbordamiento | Playwright a 320 px: `scrollWidth === clientWidth`, texto del párrafo partido en varias líneas y `consoleErrors: []`; repetir a 1280 px |
-| Sin restos de las URL antiguas | `grep -R '/auth/recuperar\|/cuenta-desactivada' src README.md AGENTS.md` sin coincidencias |
-| Calidad | `npm run build`, `npm run check`, `npx tsc --noEmit` |
-| Secretos | `grep` de `sb_secret_`, `SMTP_PASS` y `hashed_token` en el HTML servido y en `dist/` |
-| Documentación | `README.md`, `AGENTS.md` y los hallazgos de los specs 08 y 11 actualizados |
+| Criterio | Estado | Evidencia | Notas |
+| --- | --- | --- | --- |
+| `/auth/forgot-password` sirve el formulario con sus tres estados | ✅ | `fetch` → 200; `POST /api/auth/recovery` → `303 /auth/forgot-password?error=email_invalido` y `303 /auth/forgot-password?estado=enviado` | El tercer estado (`?error=envio_fallido`) no se provocó aquí; SPEC 11 verificó su render y los tres salen de la misma `RECOVERY_PATH` |
+| `/auth/recuperar` responde 404 | ✅ | `fetch` → 404 | — |
+| `/account-deactivated` responde 403 con aviso y enlace | ✅ | `fetch` → 403 sin cabecera `Location` (sin bucle) con la sesión de la cuenta inactiva | El aviso y `href="/auth/login"` los verificó SPEC 08; el cambio de ruta no altera el contenido |
+| `/cuenta-desactivada` responde 404 | ✅ | `fetch` → 404 | — |
+| Enlace del login | ✅ | HTML servido de `/auth/login`: `href="/auth/forgot-password"` junto a «¿Olvidaste tu contraseña?» | — |
+| Redirecciones del `POST` | ✅ | Cuerpo `URLSearchParams`: correo inválido → `303 /auth/forgot-password?error=email_invalido`; correo desconocido → `303 /auth/forgot-password?estado=enviado` | `?error=envio_fallido` no se provocó (no se degradó SMTP): deriva de la misma constante y SPEC 11 lo verificó |
+| Sin restos de las URL antiguas | ✅ | `grep` de `/auth/recuperar`, `/cuenta-desactivada`, `recuperar.astro` y `cuenta-desactivada.astro` en `src/`, `README.md` y `AGENTS.md`: 0 coincidencias | Los specs 08 y 11 se actualizan en esta pasada |
+| Bloqueo de cuenta inactiva | ⚠️ | Cuenta ficticia desactivada vía `PATCH /api/users/<id>`: `GET /dashboard` → `302 /account-deactivated`; `POST /api/auth/logout` → JSON 403; `GET /account-deactivated` → 403 sin `Location`; tras restaurar, estatus `activo` en el listado | Falta comprobar el 503 ante un fallo de lectura del estatus; ver «Pendiente» |
+| Flujo completo de recuperación | ⚠️ | No repetido: requiere leer el buzón SMTP y cambiar la contraseña de una cuenta ficticia. `GET /auth/confirm` → 200; `/auth/update-password?motivo=recuperacion` sin sesión → redirección a `/auth/login` | SPEC 11 verificó el end-to-end y este spec solo cambia la ruta del formulario; ver «Pendiente» |
+| Texto sin desbordamiento a 320 px | ✅ | Playwright: `scrollWidth === clientWidth === 320`, párrafo con `white-space: normal`, `display: block`, 3 líneas, `consoleErrors: 0` | — |
+| Sin regresión a 1280 px | ✅ | Playwright: `scrollWidth === clientWidth === 1280`, 2 líneas, tarjeta de 384 px, `consoleErrors: 0` | — |
+| Calidad | ✅ | `npm run build` (solo 2 avisos no fatales `Invalid empty selector` de daisyUI 5.7.50), `npm run check` (48 archivos, 0 errores / 0 warnings / 0 hints), `npx tsc --noEmit` | — |
+| Secretos | ✅ | HTML servido de `/auth/login`, `/auth/forgot-password` y `/account-deactivated` y directorio `dist/`: 0 coincidencias de `sb_secret_`, `SMTP_PASS` ni `hashed_token` | — |
+| Documentación | ✅ | `README.md` y `AGENTS.md` actualizados por el implementador y confirmados; criterio de 320 px de SPEC 11 marcado como resuelto y specs 08 y 11 con las rutas nuevas | — |
+
+### Pendiente
+
+- **Fallo al leer el estatus (503).** No se provocó un error de lectura de `public.usuarios.estatus`. Para cerrarlo: interrumpir el acceso a la base de datos en el servidor de desarrollo y comprobar que una petición con sesión responde 503 en lugar de dejar pasar la solicitud.
+- **Flujo end-to-end con correo real.** No se repitieron el envío ni el consumo del enlace ni el cambio de contraseña. Para cerrarlo: pedir el enlace desde `/auth/forgot-password` con una cuenta ficticia confirmada y activa, leer el buzón SMTP de captura, abrir `/auth/confirm`, fijar la contraseña en `/auth/update-password?motivo=recuperacion` y comprobar el acceso a `/dashboard`.
