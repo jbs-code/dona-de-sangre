@@ -6,7 +6,7 @@
 - App must be responsive: it has to read clearly on smartphones and PCs (verified at 320 px, no horizontal scroll).
 - Astro 7 SSR site (`output: 'server'`) with the `@astrojs/netlify` adapter, Tailwind CSS 4 (Vite plugin) and daisyUI 5. No UI framework integration (React/Vue/Svelte).
 - Supabase Auth is wired through `@supabase/ssr` with server-side cookies: `src/lib/supabase.ts`, `src/middleware.ts` (session refresh, `/dashboard` protection and the account-status check), `POST /api/auth/login` and `POST /api/auth/logout`. `public.usuarios` stores the profile, the role (`admin` / `supervisor` / `capturador`) and the status (`activo` / `inactivo`) with RLS; it never stores passwords.
-- Pages: `src/pages/auth/login.astro`, protected `src/pages/dashboard/index.astro`, role-protected `src/pages/dashboard/admin/users.astro` (403 unless the session is an `admin`; lists the users with server-side search, status filter and pagination), `src/pages/auth/confirm.astro` (verifies the invite token), `src/pages/auth/update-password.astro` (GET form + POST handler), `src/pages/cuenta-desactivada.astro` (403 shown to a deactivated account) and API routes `src/pages/api/{auth/login,auth/logout,invitations}.ts` plus `src/pages/api/users/[id].ts` (PATCH/DELETE) and `src/pages/api/users/[id]/reinvite.ts` (POST); `/` redirects to `/auth/login` through `redirects` in `astro.config.mjs`. Only stylesheet: `src/styles/global.css`.
+- Pages: `src/pages/auth/login.astro`, `src/pages/auth/recuperar.astro` (password-recovery request form), protected `src/pages/dashboard/index.astro`, role-protected `src/pages/dashboard/admin/users.astro` (403 unless the session is an `admin`; lists the users with server-side search, status filter and pagination), `src/pages/auth/confirm.astro` (verifies the invite or recovery token), `src/pages/auth/update-password.astro` (GET form + POST handler; `?motivo=recuperacion` switches the copy), `src/pages/cuenta-desactivada.astro` (403 shown to a deactivated account) and API routes `src/pages/api/{auth/login,auth/logout,auth/recovery,invitations}.ts` plus `src/pages/api/users/[id].ts` (PATCH/DELETE) and `src/pages/api/users/[id]/reinvite.ts` (POST); `/` redirects to `/auth/login` through `redirects` in `astro.config.mjs`. Only stylesheet: `src/styles/global.css`.
 - Role checks live in page frontmatter, not in `src/middleware.ts`: the middleware only protects `/dashboard/*` by session and blocks deactivated accounts. `src/lib/current-user.ts` (`getCurrentUser`) is the single reader of the requester's row in `public.usuarios`; the middleware resolves it once per request and exposes it as `Astro.locals.currentUser`.
 - Deactivated accounts are blocked in two layers: a database trigger keeps `auth.users.banned_until` in sync with `public.usuarios.estatus` (so `signInWithPassword` fails), and the middleware closes the session and answers 403 on any request with a session whose status is `inactivo` (302 to `/cuenta-desactivada` for pages, JSON for `/api/*`, 503 if the status cannot be read). The status is editable from the app: the `admin` changes it in the edit modal of `/dashboard/admin/users`.
 - The user listing reads `public.usuarios` with the requester's own session client (`Astro.locals.supabase`), so RLS does the filtering; the secret key stays out of it. The search term is sanitized before it reaches the PostgREST filter (`sanitizeSearchTerm` in `src/features/users/lib/users-list.ts`) and the status filter is a whitelist (`sanitizeEstatusFilter`).
@@ -16,6 +16,7 @@
 - `PATCH /api/users/[id]` (edit), `DELETE /api/users/[id]` (delete) and `POST /api/users/[id]/reinvite` (resend the invitation) live in `src/pages/api/users/`. All three require an `admin` session (401 without a session, 403 otherwise) and answer with a generic message; the details go to the server log. `src/features/users/lib/users-admin.ts` owns `parseUserUpdateInput()`, `findUserProfile()`, `updateUserProfile()` and `deleteUserAccount()`, all with the secret key (so `public.usuarios` keeps only its `select` policy).
 - Self-protection is enforced on the server, comparing the route `id` with `locals.claims.sub`: nobody changes their own `rol` or `estatus`, and nobody deletes their own account (403). The modals only disable those fields as a courtesy. An `admin` can still edit another `admin` fully.
 - `public.usuarios.email_confirmado` and `public.usuarios.invitado_at` mirror `auth.users.email_confirmed_at` and `auth.users.invited_at` through the trigger `on_auth_user_invitation_changed` (`private.sync_user_invitation()`). The resend of an invitation does not delete and recreate the account: GoTrue renews the `confirmation_token` of an unconfirmed user and keeps its `id`, `nombre` and `rol`; a confirmed account is rejected with 409.
+- Password recovery (`/auth/recuperar` + `POST /api/auth/recovery`): the form email only locates the row in `public.usuarios`; the link is always mailed to `public.usuarios.email`, and only when `email_confirmado` and `estatus = 'activo'`. The token comes from `auth.admin.generateLink({ type: 'recovery' })` and the app mails it with `src/features/auth/lib/recovery-email.ts`; the link points to `/auth/confirm?...&type=recovery&next=/auth/update-password?motivo=recuperacion`. Every outcome (unknown, unconfirmed, inactive, rate-limited, GoTrue failure) answers the same visible `?estado=enviado`; only an SMTP failure shows `?error=envio_fallido`. The rate limit (`src/features/auth/lib/rate-limit.ts`) is in-memory: 60 s per email and 5 requests per IP every 10 min.
 
 ## Structure
 
@@ -29,8 +30,11 @@ src/
 ├── lib/                                   # multi-feature infra
 │   ├── current-user.ts                    # requester's profile (nombre, email, rol, estatus) + getCurrentUser()
 │   ├── database.types.ts                  # Supabase types generated from the MCP
+│   ├── email.ts                           # EMAIL_PATTERN + normalizeEmail()
 │   ├── estatus.ts                         # Estatus type + ESTATUS_VALUES whitelist + ESTATUS_INFO map (label, badge class)
 │   ├── roles.ts                           # Rol type + ROL_VALUES whitelist + ROL_INFO map (label, badge class)
+│   ├── smtp.ts                            # createSmtpTransport() + SMTP_FROM (nodemailer transport)
+│   ├── supabase-admin.ts                  # admin client using SUPABASE_SECRET_API_KEY (server-only)
 │   └── supabase.ts                        # @supabase/ssr server client factory
 ├── components/
 │   └── ui/                                # components used across features
@@ -39,10 +43,14 @@ src/
 │       └── AppNavbar.astro                # navbar + «Cerrar sesión» logout form
 ├── features/
 │   ├── auth/
-│   │   └── components/
-│   │       ├── AuthCard.astro             # main > section.card > card-body
-│   │       ├── FormField.astro            # fieldset + label + input (or slot)
-│   │       └── PasswordInput.astro        # div.input + password field + toggle + its script
+│   │   ├── components/
+│   │   │   ├── AuthCard.astro             # main > section.card > card-body
+│   │   │   ├── FormField.astro            # fieldset + label + input (or slot)
+│   │   │   └── PasswordInput.astro        # div.input + password field + toggle + its script
+│   │   └── lib/
+│   │       ├── rate-limit.ts              # consumeIpSlot(), isEmailCoolingDown(), markEmailSent()
+│   │       ├── recovery.ts                # parseRecoveryInput(), findRecoverableUser(), generateRecoveryLink()
+│   │       └── recovery-email.ts          # sendRecoveryEmail() (greets by name, escapes the HTML)
 │   ├── dashboard/
 │   │   └── components/
 │   │       └── AdminUsersShortcutCard.astro # admin-only card linking to /dashboard/admin/users
@@ -64,18 +72,17 @@ src/
 │   └── invitations/
 │       └── lib/
 │           ├── invitations.ts              # parseInviteInput() + generateInviteLink() + createInvitedUser()
-│           ├── email.ts                   # nodemailer SMTP sender (greets by name, escapes the HTML)
-│           └── supabase-admin.ts          # admin client using SUPABASE_SECRET_API_KEY
+│           └── email.ts                   # sendInviteEmail() (greets by name, escapes the HTML)
 └── pages/
     ├── cuenta-desactivada.astro           # 403 for a deactivated account (exempt from the status check)
     ├── dashboard/index.astro              # profile card (+ admin shortcut card)
     ├── dashboard/admin/users.astro        # role guard: Astro.response.status = 403 if not admin
-    ├── auth/{login,confirm,update-password}.astro
+    ├── auth/{login,confirm,recuperar,update-password}.astro
     └── api/
         ├── invitations.ts
         ├── users/[id].ts                  # PATCH (edit) + DELETE (remove) of one user
         ├── users/[id]/reinvite.ts         # POST (resend the invitation)
-        └── auth/{login,logout}.ts
+        └── auth/{login,logout,recovery}.ts
 ```
 
 Rules:
@@ -147,22 +154,25 @@ Unchanged rules, restated here so they are never lost during refactors:
 
 - Server-only secrets: `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SECRET_API_KEY` and `SMTP_*` are `astro:env` server secrets; they must never appear in client code, in the served HTML/JS, or in `dist/`.
 - RLS on every table in an exposed schema, with per-table policies (details in Supabase above).
-- `service_role`/secret keys only in server code: `SUPABASE_SECRET_API_KEY` is read by `src/features/invitations/lib/supabase-admin.ts` from API routes, never from pages or client scripts.
+- `service_role`/secret keys only in server code: `SUPABASE_SECRET_API_KEY` is read by `src/lib/supabase-admin.ts` from API routes, never from pages or client scripts.
 - The deactivated-account check fails closed: if the status cannot be read, the middleware answers 503 instead of letting the request through.
 - The login endpoint never reveals whether an account exists: `POST /api/auth/login` answers the same generic error for a wrong password and for a banned account.
 - The invitation endpoint never reveals whether an account exists either: `POST /api/invitations` answers a generic 409 for an already-registered email.
 - The role of an invited person is decided by the server from the request body, never from the invite metadata (see Project above): only the `admin` that calls the API can choose it.
 - The user-management routes (`/api/users/**`) check the role on the server (`locals.currentUser?.rol !== 'admin'` → 403) and enforce self-protection (no own `rol`/`estatus` change, no own deletion → 403). The disabled fields in the modals are only a courtesy.
 - The reinvite endpoint never mails a confirmed account: `public.usuarios.email_confirmado` is checked first (409) and GoTrue's `email_exists` is mapped to the same 409.
+- The recovery endpoint never reveals whether an account exists either: unknown, unconfirmed, inactive, rate-limited and GoTrue-failure cases all redirect to the same `?estado=enviado`. Only an SMTP failure (global, not account-dependent) shows `?error=envio_fallido`.
+- The recovery link is always mailed to `public.usuarios.email`, never to the address typed in the form; the form email only locates the row. Accounts with `email_confirmado = false` or `estatus = 'inactivo'` never receive a link.
+- The recovery `hashed_token` is never logged: the server log records only the discard reason (`[auth/recovery]`), and the token never reaches the app URL or the served HTML.
 
 ## Email (SMTP)
 
-- The app sends its own invitation emails with `nodemailer` (`src/features/invitations/lib/email.ts`): Gmail SMTP (`smtp.gmail.com`, port 465, direct TLS) using an app password. `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `SUPABASE_SECRET_API_KEY` are `astro:env` server secrets; only placeholders go in `.env.template`.
+- The app sends its own emails with `nodemailer`: the shared transport lives in `src/lib/smtp.ts` (`createSmtpTransport()` + `SMTP_FROM`), and the two senders are `src/features/invitations/lib/email.ts` (`sendInviteEmail`) and `src/features/auth/lib/recovery-email.ts` (`sendRecoveryEmail`). Gmail SMTP (`smtp.gmail.com`, port 465, direct TLS) using an app password. `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `SUPABASE_SECRET_API_KEY` are `astro:env` server secrets; only placeholders go in `.env.template`.
 - Gmail allows about 500 emails per day (fewer on new accounts) — enough for the lab. Migrate to another SMTP (Resend, SendGrid…) if the volume grows.
-- If the Google app password is revoked or expires, sends fail: the error is logged on the server and `POST /api/invitations` answers a generic message. To rotate it, generate a new app password and update `SMTP_PASS`.
-- Never use Supabase Dashboard's «Invite user» button: it would send a second email from Supabase. The app calls `auth.admin.generateLink` (returns `hashed_token` and sends nothing) and mails the link itself.
-- The invitation email greets the invited person by name (`sendInviteEmail` takes `nombre`); the HTML part escapes the name, the email and the link before interpolating them.
-- `SUPABASE_SECRET_API_KEY` (the `sb_secret_...` key, the current replacement for `service_role`) is server-only: read by `src/features/invitations/lib/supabase-admin.ts` from API routes. It must never appear in client code, in the served HTML/JS, or in `dist/`.
+- If the Google app password is revoked or expires, sends fail: the error is logged on the server (`[invitations] fallo SMTP:` / `[auth/recovery] fallo SMTP:`) and the API answers a generic message. To rotate it, generate a new app password and update `SMTP_PASS`.
+- Never use Supabase Dashboard's «Invite user» button (or its password-recovery mail): it would send a second email from Supabase. The app calls `auth.admin.generateLink` (returns `hashed_token` and sends nothing) and mails the link itself.
+- Both emails greet the person by name (the senders take `nombre`); the HTML part escapes the name, the email and the link before interpolating them. The recovery email also states that the link expires in 1 hour and can only be used once.
+- `SUPABASE_SECRET_API_KEY` (the `sb_secret_...` key, the current replacement for `service_role`) is server-only: read by `src/lib/supabase-admin.ts` from API routes. It must never appear in client code, in the served HTML/JS, or in `dist/`.
 
 ## Spec workflow
 
@@ -171,7 +181,7 @@ Unchanged rules, restated here so they are never lost during refactors:
 - `/spec-impl` executes the implementation plan **one numbered step at a time**: implement exactly one step, summarize the files touched and show the diff, then **stop and wait for human review**. Never chain several steps in one go; continue only after the user explicitly confirms (`yes`, `go`, equivalent). If there are no steps left, say so and stop.
 - Never commit automatically, per step or at the end; only when the user explicitly asks. Only a human moves a spec to `Approved` and to `Implemented`. `/spec-impl` creates/switches to branch `spec-NN-slug` before implementing.
 - `spec-verifier` only verifies and edits files under `specs/**`; it must not change app code or the spec's status.
-- `specs/` holds `specs/01-login.md`, `specs/02-auth-supabase.md`, `specs/03-invitacion-confirmacion.md` and `specs/04-toggle-visibilidad-contrasena.md` (all `Implementado`), plus `specs/05-refactor-fdd-componentes.md`, `specs/06-admin-usuarios.md`, `specs/07-listado-usuarios.md`, `specs/08-estatus-usuarios.md`, `specs/09-alta-usuario-desde-panel.md` and `specs/10-edicion-borrado-y-reenvio-invitacion.md`. New specs follow `specs/NN-slug.md`.
+- `specs/` holds `specs/01-login.md`, `specs/02-auth-supabase.md`, `specs/03-invitacion-confirmacion.md` and `specs/04-toggle-visibilidad-contrasena.md` (all `Implementado`), plus `specs/05-refactor-fdd-componentes.md`, `specs/06-admin-usuarios.md`, `specs/07-listado-usuarios.md`, `specs/08-estatus-usuarios.md`, `specs/09-alta-usuario-desde-panel.md`, `specs/10-edicion-borrado-y-reenvio-invitacion.md` and `specs/11-recuperacion-contrasena.md`. New specs follow `specs/NN-slug.md`.
 - `spec-verifier` uses `npx astro dev *`, `npm run build`, `npx tsc --noEmit` (never `astro check`), read-only git, read-only `curl`, Playwright, Context7, Astro Docs and the Supabase MCP. Its Supabase access is read-only: no migrations, branches, Edge Functions or DML/DDL. It must ask before mutating real state (invitations, real `POST`s).
 
 ## References

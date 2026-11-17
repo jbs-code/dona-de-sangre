@@ -18,6 +18,7 @@ El acceso a la aplicación está protegido: solo las cuentas creadas por el labo
 - Estado de la invitación en el listado: insignia «Pendiente» o «Confirmada» y fecha del último envío.
 - Autoprotección del `admin`: nadie puede cambiar su propio rol, su propio estatus ni eliminarse.
 - Flujo de invitación: el administrador genera un enlace, la aplicación envía el correo, el invitado confirma su correo y define su propia contraseña.
+- Recuperación de contraseña: la persona pide un enlace en `/auth/recuperar`, el correo llega **solo al buzón registrado** y el enlace, de un solo uso y una hora de caducidad, permite elegir una contraseña nueva.
 - Esquema de base de datos con tabla de perfiles, roles, estatus y políticas RLS por tabla.
 - Estructura del proyecto organizada por funcionalidad (`src/features/`) con componentes reutilizables.
 - Tema propio de daisyUI (`dona` claro y `dona-dark` oscuro) y diseño responsive verificado a 320 px.
@@ -25,7 +26,6 @@ El acceso a la aplicación está protegido: solo las cuentas creadas por el labo
 **Pendiente**
 
 - Formulario de captura de donadores (el objetivo principal del producto).
-- Recuperación de contraseña («¿Olvidaste tu contraseña?»).
 
 ## Stack tecnológico
 
@@ -65,7 +65,7 @@ El archivo `.env` está en `.gitignore` y es local; `.env.template` está versio
 | -------- | -------------- | ---------------- | ----------- |
 | `SUPABASE_URL` | URL del proyecto (`https://<ref>.supabase.co`). | Supabase → Project Settings → API → Project URL | Sí |
 | `SUPABASE_KEY` | Clave publicable (`sb_publishable_…`) o clave `anon` heredada. Se usa como clave de cliente en el servidor. | Supabase → Project Settings → API → Publishable keys | Sí |
-| `SUPABASE_SECRET_API_KEY` | Clave secreta (`sb_secret_…`), sustituta actual de `service_role`. Solo la usa `auth.admin.generateLink` para generar invitaciones. | Supabase → Project Settings → API → Secret keys | Sí |
+| `SUPABASE_SECRET_API_KEY` | Clave secreta (`sb_secret_…`), sustituta actual de `service_role`. Solo se usa en el servidor para `auth.admin.generateLink` (invitaciones y recuperación) y para la gestión de usuarios. | Supabase → Project Settings → API → Secret keys | Sí |
 | `SUPABASE_DB_PASSWORD` | Contraseña de la base de datos. La usan la CLI y el MCP de Supabase; el sitio no la necesita. | Supabase → Project Settings → Database | Solo si usas la CLI/MCP |
 | `SMTP_HOST` | Servidor SMTP de Gmail. | `smtp.gmail.com` | Sí |
 | `SMTP_PORT` | Puerto SMTP con TLS directo. | `465` | Sí |
@@ -112,7 +112,7 @@ En el panel de Supabase:
 - **Authentication → Sign In / Providers → Email**: activa el proveedor de correo y deja **«Confirm email» activado**.
 - **Authentication → Policies → Password Settings**: longitud mínima de contraseña de **8 caracteres**.
 
-El correo no lo envía Supabase: la aplicación genera el enlace con `auth.admin.generateLink` y lo manda por su propio SMTP. Por eso **no se debe usar el botón «Invite user» del Dashboard**, que provocaría un segundo correo desde Supabase.
+El correo no lo envía Supabase: la aplicación genera los enlaces con `auth.admin.generateLink` (invitación y recuperación) y los manda por su propio SMTP. Por eso **no se deben usar el botón «Invite user» ni el envío de recuperación del Dashboard**, que provocarían un segundo correo desde Supabase.
 
 ### 4. Copiar las claves
 
@@ -159,7 +159,7 @@ La respuesta es `{"ok":true}` si el correo se envió. `400` indica que los datos
 
 ## Configuración de Gmail (SMTP)
 
-Los correos de invitación los envía la propia aplicación con `nodemailer`, usando el SMTP de Gmail:
+Los correos de invitación y de recuperación de contraseña los envía la propia aplicación con `nodemailer`, usando el SMTP de Gmail:
 
 1. Activa la **verificación en dos pasos** en la cuenta de Google.
 2. Entra en [myaccount.google.com](https://myaccount.google.com) → **Seguridad** → **Verificación en dos pasos** → **Contraseñas de aplicación**.
@@ -178,8 +178,8 @@ Consideraciones importantes:
 - **Usa siempre una contraseña de aplicación**, nunca la contraseña real de Google: la contraseña real no funciona con SMTP.
 - El remitente es `SMTP_USER`. Si el correo acaba en spam, añade el remitente a los contactos del laboratorio.
 - Gmail permite alrededor de **500 correos al día** (menos en cuentas nuevas), suficiente para el caso del laboratorio. Si el volumen crece, hay que migrar a otro proveedor (Resend, SendGrid…).
-- Si la contraseña de aplicación se revoca o caduca, los envíos fallan: el error queda registrado en el servidor (`[invitations] fallo SMTP:`) y `POST /api/invitations` responde con un mensaje genérico. Para rotarla, genera una nueva en Google y actualiza `SMTP_PASS`.
-- El enlace de invitación **caduca en 1 hora** y solo puede usarse una vez. Si caduca, hay que volver a invitar al mismo correo.
+- Si la contraseña de aplicación se revoca o caduca, los envíos fallan: el error queda registrado en el servidor (`[invitations] fallo SMTP:` o `[auth/recovery] fallo SMTP:`) y la API responde con un mensaje genérico. Para rotarla, genera una nueva en Google y actualiza `SMTP_PASS`.
+- Los enlaces de invitación y de recuperación **caducan en 1 hora** y solo pueden usarse una vez. Si el de invitación caduca, hay que volver a invitar al mismo correo; si caduca el de recuperación, se pide otro desde `/auth/recuperar`.
 
 ## Puesta en marcha
 
@@ -217,8 +217,11 @@ src/
 ├── lib/                                   # infraestructura compartida entre features
 │   ├── current-user.ts                    # perfil del solicitante (nombre, correo, rol, estatus)
 │   ├── database.types.ts                  # tipos de Supabase generados desde el MCP
+│   ├── email.ts                           # EMAIL_PATTERN y normalizeEmail()
 │   ├── estatus.ts                         # tipo Estatus, lista blanca ESTATUS_VALUES y mapa ESTATUS_INFO
 │   ├── roles.ts                           # tipo Rol, lista blanca ROL_VALUES y mapa ROL_INFO (etiqueta, clase del badge)
+│   ├── smtp.ts                            # createSmtpTransport() y SMTP_FROM (correos de la aplicación)
+│   ├── supabase-admin.ts                  # cliente con la clave secreta (solo rutas de API)
 │   └── supabase.ts                        # cliente de servidor (@supabase/ssr) con cookies
 ├── components/
 │   └── ui/                                # componentes usados por varias features
@@ -226,24 +229,28 @@ src/
 │       ├── AlertError.astro               # aviso de error accesible
 │       └── AppNavbar.astro                # navbar del panel y «Cerrar sesión»
 ├── features/
-│   ├── auth/components/                   # AuthCard, FormField, PasswordInput
+│   ├── auth/
+│   │   ├── components/                    # AuthCard, FormField, PasswordInput
+│   │   └── lib/                           # rate-limit.ts (cooldown por correo y ventana por IP)
+│   │                                      # recovery.ts (validación, perfil recuperable y token)
+│   │                                      # recovery-email.ts (correo de recuperación)
 │   ├── dashboard/components/              # AdminUsersShortcutCard
 │   ├── users/
 │   │   ├── components/                    # AdminUsersPanel, UsersSearchForm, UsersTable, UsersPagination y los modales
 │   │   │                                  # UsersInviteModal, UsersEditModal, UsersDeleteModal, UsersResendModal
 │   │   └── lib/                           # users-list.ts (consulta, saneado y paginación)
 │   │                                      # users-admin.ts (validación y escrituras con clave secreta)
-│   └── invitations/lib/                   # invitations.ts (validación, alta y enlace), email.ts (nodemailer) y supabase-admin.ts
+│   └── invitations/lib/                   # invitations.ts (validación, alta y enlace) y email.ts (correo de invitación)
 └── pages/
     ├── cuenta-desactivada.astro           # 403 para una cuenta desactivada
     ├── dashboard/index.astro              # panel protegido
     ├── dashboard/admin/users.astro        # listado de usuarios (solo admin)
-    ├── auth/{login,confirm,update-password}.astro
+    ├── auth/{login,confirm,recuperar,update-password}.astro
     └── api/
         ├── invitations.ts
         ├── users/[id].ts                  # PATCH (editar) y DELETE (eliminar) de un usuario
         ├── users/[id]/reinvite.ts         # POST (reenviar la invitación)
-        └── auth/{login,logout}.ts
+        └── auth/{login,logout,recovery}.ts
 ```
 
 Reglas de organización:
@@ -260,8 +267,9 @@ Reglas de organización:
 | ---- | ----------- |
 | `/` | Redirige a `/auth/login`. |
 | `/auth/login` | Formulario de inicio de sesión. |
-| `/auth/confirm` | Verifica el token de invitación, crea la sesión y redirige a la elección de contraseña. |
-| `/auth/update-password` | `GET`: formulario de contraseña nueva. `POST`: valida y guarda la contraseña. |
+| `/auth/recuperar` | Formulario para pedir un enlace de recuperación de contraseña. Estados por URL: `?estado=enviado`, `?error=email_invalido` y `?error=envio_fallido`. |
+| `/auth/confirm` | Verifica el token de invitación o de recuperación, crea la sesión y redirige al destino indicado (la elección de contraseña). |
+| `/auth/update-password` | `GET`: formulario de contraseña nueva (con `?motivo=recuperacion` muestra el copy de recuperación). `POST`: valida y guarda la contraseña. |
 | `/dashboard` | Panel protegido: muestra el perfil y el rol del usuario. Solo el `admin` ve además la tarjeta «Administrar usuarios». |
 | `/dashboard/admin/users` | Listado de los usuarios registrados, solo para `admin`: responde 403 si la sesión no es de un administrador. Admite `?q=` (búsqueda por nombre o correo), `?estatus=` (`activo` o `inactivo`) y `?page=` (paginación de 10). |
 | `/cuenta-desactivada` | Aviso de cuenta desactivada. Responde 403 y no requiere sesión. |
@@ -272,12 +280,14 @@ Reglas de organización:
 | ---- | ----------- |
 | `POST /api/auth/login` | Inicia sesión con correo y contraseña. |
 | `POST /api/auth/logout` | Cierra la sesión. |
+| `POST /api/auth/recovery` | Recibe el correo del formulario y, si la cuenta existe, está confirmada y activa, envía un enlace de un solo uso **al correo registrado**. La respuesta visible es idéntica exista o no la cuenta. `GET` responde `405`. |
 | `POST /api/invitations` | Solo para `admin`: crea la persona invitada (nombre, correo y rol) y envía el correo de invitación. Cuerpo: `{ "email": "…", "nombre": "…", "rol": "…" }`, con `nombre` y `rol` opcionales. |
 | `PATCH /api/users/<id>` | Solo para `admin`: edita el perfil de una persona. Cuerpo: `{ "nombre": "…", "rol": "…", "estatus": "…" }`, con `rol` y `estatus` opcionales. El correo no se puede editar. |
 | `DELETE /api/users/<id>` | Solo para `admin`: elimina la cuenta de una persona. |
 | `POST /api/users/<id>/reinvite` | Solo para `admin`: reenvía la invitación a una cuenta que aún no ha validado su correo. |
 
 El flujo de invitación es: **invitar → correo → confirmar el enlace → elegir contraseña → entrar al panel**.
+El flujo de recuperación es: **pedir el correo → enlace al buzón registrado → confirmar el enlace → elegir contraseña nueva → entrar al panel**.
 
 ### Búsqueda, filtro y paginación de usuarios
 
@@ -355,6 +365,21 @@ curl -b cookies.txt -X POST http://localhost:4321/api/users/<id>/reinvite
 curl -b cookies.txt -X DELETE http://localhost:4321/api/users/<id>
 ```
 
+## Recuperación de contraseña
+
+Cuando alguien olvida su contraseña, el enlace «¿Olvidaste tu contraseña?» del login lleva a `/auth/recuperar`. Allí escribe su correo y la aplicación responde **siempre lo mismo** (`?estado=enviado`), exista o no esa cuenta:
+
+- **El enlace se envía al correo registrado**, nunca a otro. El correo del formulario solo sirve para localizar la cuenta en `public.usuarios`; el destinatario es siempre `public.usuarios.email`. Por eso la aplicación nunca cambia el correo de una cuenta.
+- El enlace se genera con `auth.admin.generateLink({ type: 'recovery' })` y lo manda la aplicación por su propio SMTP, igual que las invitaciones. No se usa el botón «Recover» del panel de Supabase, que enviaría un segundo correo.
+- Solo se envía a cuentas con el correo **confirmado** y el estatus **activo**. Una cuenta sin confirmar se reenvía desde el panel (SPEC 10) y una inactiva está bloqueada (SPEC 08): en ambos casos el enlace sería inútil.
+- El enlace **caduca en 1 hora** y **solo puede usarse una vez**. Al abrirlo, `/auth/confirm` verifica el token, crea la sesión y redirige a `/auth/update-password?motivo=recuperacion`, donde se elige la contraseña nueva.
+- **Límite de frecuencia**: un envío por correo cada 60 segundos y cinco peticiones por IP cada 10 minutos. El estado vive en la memoria de la instancia (una protección de esfuerzo, no un muro) y las peticiones cortadas responden igual que un envío correcto.
+- Un fallo del SMTP **sí** muestra un error (`?error=envio_fallido`): es global y no depende de que la cuenta exista.
+
+**Si la persona ya no tiene acceso a su correo registrado**, la aplicación no puede verificar que sea la titular: el camino previsto es que el `admin` elimine la cuenta y cree una nueva con otro correo (SPEC 09 y SPEC 10). La propia página lo indica.
+
+Los casos descartados (correo inexistente, sin confirmar, inactivo o límite alcanzado) quedan en el log del servidor con el prefijo `[auth/recovery]`, sin el token de recuperación.
+
 ## Estatus de las cuentas
 
 Cada cuenta de `public.usuarios` tiene un estatus: `activo` (por defecto) o `inactivo`. El estatus se aplica en dos capas.
@@ -415,13 +440,15 @@ No subas el archivo `.env` al repositorio: las credenciales viajan siempre por l
 
 - Todas las variables sensibles son secretos de servidor (`context: 'server'`, `access: 'secret'`): no aparecen en el HTML, en el JS servido al cliente ni en `dist/`.
 - RLS está activo en `public.usuarios` con políticas por tabla: un usuario autenticado solo puede leer su propio perfil, y `admin` o `supervisor` pueden leer los del equipo.
-- La clave secreta (`sb_secret_…`) solo se usa en `src/features/invitations/lib/supabase-admin.ts`, y ese módulo únicamente se importa desde rutas de API.
+- La clave secreta (`sb_secret_…`) solo se usa en `src/lib/supabase-admin.ts`, y ese módulo únicamente se importa desde rutas de API.
 - Las escrituras de los perfiles (alta, edición y borrado) usan la clave secreta, así que `public.usuarios` no abre ninguna política de escritura en RLS: la tabla sigue siendo de solo lectura para el rol `authenticated`.
 - Las rutas de gestión de usuarios (`/api/users/…`) exigen rol `admin` y comprueban en el servidor que nadie cambie su propio rol ni su propio estatus, ni se elimine a sí mismo.
 - Las cookies de sesión son `httpOnly`, `sameSite=lax` y `secure` en producción; las peticiones se autorizan con `getClaims()`, nunca con `getSession()`.
 - Las rutas bajo `/dashboard` son las únicas que exigen sesión.
 - Las cuentas con estatus `inactivo` no pueden entrar ni usar la aplicación: el baneo de Supabase Auth impide el inicio de sesión y el middleware cierra la sesión y responde 403 en cualquier petición. La comprobación falla cerrada: si el estatus no se puede leer, la aplicación responde 503.
 - El inicio de sesión no revela si un correo existe: una contraseña incorrecta y una cuenta desactivada devuelven el mismo mensaje.
+- La recuperación de contraseña tampoco revela si la cuenta existe: la respuesta visible es la misma en todos los casos y el enlace solo se envía al correo registrado de una cuenta confirmada y activa.
+- El token de recuperación no se escribe en el log, no viaja en la URL de la aplicación y no aparece en el HTML servido.
 - El reenvío de invitación solo se ofrece a cuentas sin confirmar y la API responde `409` si la cuenta ya validó su correo: no se envía ningún correo a una cuenta activa.
 
 ## Solución de problemas
@@ -430,8 +457,8 @@ No subas el archivo `.env` al repositorio: las credenciales viajan siempre por l
 | ------- | ------------------------- |
 | El build muestra avisos `Invalid empty selector` | Vienen del CSS de daisyUI. Son no fatales y no afectan al sitio. |
 | `Missing or invalid environment variable` al arrancar | Falta alguna variable del esquema de `astro:env`. Revisa `.env` y `astro.config.mjs`. |
-| El correo de invitación no llega | Revisa `SMTP_*`, que la contraseña de aplicación siga vigente y el límite diario de Gmail; mira el log `[invitations] fallo SMTP:` en la salida del servidor. |
-| «Enlace no válido» al confirmar | El enlace caducó (1 hora) o ya se usó. Vuelve a invitar al mismo correo. |
+| El correo de invitación o de recuperación no llega | Revisa `SMTP_*`, que la contraseña de aplicación siga vigente y el límite diario de Gmail; mira el log `[invitations] fallo SMTP:` o `[auth/recovery] fallo SMTP:` en la salida del servidor. |
+| «Enlace no válido» al confirmar | El enlace caducó (1 hora) o ya se usó. Si era una invitación, vuelve a invitar al mismo correo; si era una recuperación, pide un enlace nuevo desde «¿Olvidaste tu contraseña?». |
 | `POST /api/invitations` devuelve 401 o 403 | Falta la sesión (401) o el usuario no tiene rol `admin` (403). |
 | El login dice «Correo o contraseña incorrectos» y la contraseña es correcta | La cuenta puede estar desactivada: el login no lo distingue por seguridad. Comprueba el estatus en `public.usuarios` o en el panel de Supabase. |
 | Una cuenta desactivada no puede volver a entrar | Reactívala con `update public.usuarios set estatus = 'activo' where email = '…'`; el trigger levanta el baneo de Supabase Auth. |
