@@ -18,7 +18,7 @@ El acceso a la aplicación está protegido: solo las cuentas creadas por el labo
 - Estado de la invitación en el listado: insignia «Pendiente» o «Confirmada» y fecha del último envío.
 - Autoprotección del `admin`: nadie puede cambiar su propio rol, su propio estatus ni eliminarse.
 - Flujo de invitación: el administrador genera un enlace, la aplicación envía el correo, el invitado confirma su correo y define su propia contraseña.
-- Recuperación de contraseña: la persona pide un enlace en `/auth/recuperar`, el correo llega **solo al buzón registrado** y el enlace, de un solo uso y una hora de caducidad, permite elegir una contraseña nueva.
+- Recuperación de contraseña: la persona pide un enlace en `/auth/forgot-password`, el correo llega **solo al buzón registrado** y el enlace, de un solo uso y una hora de caducidad, permite elegir una contraseña nueva.
 - Esquema de base de datos con tabla de perfiles, roles, estatus y políticas RLS por tabla.
 - Estructura del proyecto organizada por funcionalidad (`src/features/`) con componentes reutilizables.
 - Tema propio de daisyUI (`dona` claro y `dona-dark` oscuro) y diseño responsive verificado a 320 px.
@@ -179,7 +179,7 @@ Consideraciones importantes:
 - El remitente es `SMTP_USER`. Si el correo acaba en spam, añade el remitente a los contactos del laboratorio.
 - Gmail permite alrededor de **500 correos al día** (menos en cuentas nuevas), suficiente para el caso del laboratorio. Si el volumen crece, hay que migrar a otro proveedor (Resend, SendGrid…).
 - Si la contraseña de aplicación se revoca o caduca, los envíos fallan: el error queda registrado en el servidor (`[invitations] fallo SMTP:` o `[auth/recovery] fallo SMTP:`) y la API responde con un mensaje genérico. Para rotarla, genera una nueva en Google y actualiza `SMTP_PASS`.
-- Los enlaces de invitación y de recuperación **caducan en 1 hora** y solo pueden usarse una vez. Si el de invitación caduca, hay que volver a invitar al mismo correo; si caduca el de recuperación, se pide otro desde `/auth/recuperar`.
+- Los enlaces de invitación y de recuperación **caducan en 1 hora** y solo pueden usarse una vez. Si el de invitación caduca, hay que volver a invitar al mismo correo; si caduca el de recuperación, se pide otro desde `/auth/forgot-password`.
 
 ## Puesta en marcha
 
@@ -242,10 +242,10 @@ src/
 │   │                                      # users-admin.ts (validación y escrituras con clave secreta)
 │   └── invitations/lib/                   # invitations.ts (validación, alta y enlace) y email.ts (correo de invitación)
 └── pages/
-    ├── cuenta-desactivada.astro           # 403 para una cuenta desactivada
+    ├── account-deactivated.astro          # 403 para una cuenta desactivada
     ├── dashboard/index.astro              # panel protegido
     ├── dashboard/admin/users.astro        # listado de usuarios (solo admin)
-    ├── auth/{login,confirm,recuperar,update-password}.astro
+    ├── auth/{login,confirm,forgot-password,update-password}.astro
     └── api/
         ├── invitations.ts
         ├── users/[id].ts                  # PATCH (editar) y DELETE (eliminar) de un usuario
@@ -267,12 +267,12 @@ Reglas de organización:
 | ---- | ----------- |
 | `/` | Redirige a `/auth/login`. |
 | `/auth/login` | Formulario de inicio de sesión. |
-| `/auth/recuperar` | Formulario para pedir un enlace de recuperación de contraseña. Estados por URL: `?estado=enviado`, `?error=email_invalido` y `?error=envio_fallido`. |
+| `/auth/forgot-password` | Formulario para pedir un enlace de recuperación de contraseña. Estados por URL: `?estado=enviado`, `?error=email_invalido` y `?error=envio_fallido`. |
 | `/auth/confirm` | Verifica el token de invitación o de recuperación, crea la sesión y redirige al destino indicado (la elección de contraseña). |
 | `/auth/update-password` | `GET`: formulario de contraseña nueva (con `?motivo=recuperacion` muestra el copy de recuperación). `POST`: valida y guarda la contraseña. |
 | `/dashboard` | Panel protegido: muestra el perfil y el rol del usuario. Solo el `admin` ve además la tarjeta «Administrar usuarios». |
 | `/dashboard/admin/users` | Listado de los usuarios registrados, solo para `admin`: responde 403 si la sesión no es de un administrador. Admite `?q=` (búsqueda por nombre o correo), `?estatus=` (`activo` o `inactivo`) y `?page=` (paginación de 10). |
-| `/cuenta-desactivada` | Aviso de cuenta desactivada. Responde 403 y no requiere sesión. |
+| `/account-deactivated` | Aviso de cuenta desactivada. Responde 403 y no requiere sesión. |
 
 **API**
 
@@ -367,7 +367,7 @@ curl -b cookies.txt -X DELETE http://localhost:4321/api/users/<id>
 
 ## Recuperación de contraseña
 
-Cuando alguien olvida su contraseña, el enlace «¿Olvidaste tu contraseña?» del login lleva a `/auth/recuperar`. Allí escribe su correo y la aplicación responde **siempre lo mismo** (`?estado=enviado`), exista o no esa cuenta:
+Cuando alguien olvida su contraseña, el enlace «¿Olvidaste tu contraseña?» del login lleva a `/auth/forgot-password`. Allí escribe su correo y la aplicación responde **siempre lo mismo** (`?estado=enviado`), exista o no esa cuenta:
 
 - **El enlace se envía al correo registrado**, nunca a otro. El correo del formulario solo sirve para localizar la cuenta en `public.usuarios`; el destinatario es siempre `public.usuarios.email`. Por eso la aplicación nunca cambia el correo de una cuenta.
 - El enlace se genera con `auth.admin.generateLink({ type: 'recovery' })` y lo manda la aplicación por su propio SMTP, igual que las invitaciones. No se usa el botón «Recover» del panel de Supabase, que enviaría un segundo correo.
@@ -388,9 +388,9 @@ Cada cuenta de `public.usuarios` tiene un estatus: `activo` (por defecto) o `ina
 
 **En la aplicación.** El middleware comprueba el estatus en **toda** petición con sesión (no solo en `/dashboard/*`):
 
-- Si el estatus es `inactivo`, cierra la sesión y responde **403**: en las páginas, con una redirección a `/cuenta-desactivada`; en las rutas `/api/*`, con un JSON de error.
+- Si el estatus es `inactivo`, cierra la sesión y responde **403**: en las páginas, con una redirección a `/account-deactivated`; en las rutas `/api/*`, con un JSON de error.
 - Si el estatus no se puede leer, responde **503**: se falla cerrado, porque sin base de datos no se puede comprobar el bloqueo.
-- La ruta `/cuenta-desactivada` está exenta de la comprobación, para que no se redirija a sí misma en bucle.
+- La ruta `/account-deactivated` está exenta de la comprobación, para que no se redirija a sí misma en bucle.
 
 El login no se modifica: `POST /api/auth/login` responde «Correo o contraseña incorrectos» tanto si la contraseña es errónea como si la cuenta está desactivada, de modo que no se revela qué correos existen.
 
