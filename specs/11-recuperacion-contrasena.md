@@ -1,6 +1,6 @@
 # SPEC 11 — Recuperación de contraseña
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 02, SPEC 03, SPEC 09, SPEC 10
 > **Fecha:** 2026-11-16
 > **Objetivo:** Permitir que una persona con cuenta activa solicite por correo un enlace de un solo uso para establecer una contraseña nueva cuando no recuerda la actual.
@@ -265,35 +265,35 @@ src/
 
 ## Criterios de aceptación
 
-- [ ] `npm run build` termina correctamente (solo los avisos no fatales `Invalid empty selector` de daisyUI).
-- [ ] `npx tsc --noEmit` no reporta errores.
-- [ ] `npm run check` (`astro check`) no reporta errores en los `.astro`.
-- [ ] El enlace «¿Olvidaste tu contraseña?» del login apunta a `/auth/recuperar`.
-- [ ] `/auth/recuperar` muestra un campo de correo, un botón «Enviar enlace» y un enlace de vuelta al login.
-- [ ] La ayuda del campo dice que el enlace se envía al correo escrito y la nota del formulario dice que, sin acceso a ese correo, hay que pedir una cuenta nueva al `admin`.
-- [ ] Un correo con formato inválido devuelve la página con el mensaje de error y no genera ningún token.
-- [ ] Con un correo **no registrado**, la respuesta visible es idéntica a la de un correo registrado y no llega ningún correo.
-- [ ] Con un correo registrado de una cuenta **sin confirmar**, la respuesta visible es idéntica y no llega ningún correo.
-- [ ] Con un correo registrado de una cuenta **inactiva**, la respuesta visible es idéntica y no llega ningún correo.
-- [ ] Con un correo registrado de una cuenta confirmada y activa, llega un correo con un enlace que lleva a `/auth/confirm` y contiene `type=recovery`.
-- [ ] El correo de recuperación llega a `public.usuarios.email` de la cuenta, que es la dirección registrada.
-- [ ] La aplicación nunca envía un enlace a una dirección distinta de la registrada en la cuenta.
-- [ ] El correo se envía desde la dirección SMTP de la aplicación y el asunto es «Restablece tu contraseña - Dona de Sangre».
-- [ ] El correo saluda por el nombre de `public.usuarios.nombre` e indica que el enlace caduca en una hora y solo se usa una vez.
-- [ ] Al abrir el enlace, se crea la sesión y la persona llega a `/auth/update-password` con el título «Elige tu nueva contraseña».
-- [ ] Al guardar la contraseña nueva, se puede iniciar sesión con ella y la anterior ya no sirve.
-- [ ] Un enlace ya usado o caducado lleva a la página de «Enlace no válido» y no permite cambiar la contraseña.
-- [ ] Una persona sin acceso a su correo registrado recibe el mensaje de la nota del formulario y no encuentra ninguna vía de recuperación en la aplicación.
-- [ ] Dos peticiones del mismo correo dentro de 60 s generan un solo correo; la segunda respuesta visible es la misma.
-- [ ] Seis peticiones desde la misma IP dentro de 10 minutos se cortan a partir de la sexta; la respuesta visible es la misma.
-- [ ] Un fallo del SMTP se registra en el log del servidor y la página muestra «No se pudo enviar el correo…».
-- [ ] El log del servidor registra los casos descartados (correo inexistente, no confirmado, inactivo, límite alcanzado) **sin** el token de recuperación.
-- [ ] `GET /api/auth/recovery` devuelve `405` con la cabecera `Allow: POST`.
-- [ ] La respuesta del `POST` es una redirección a `/auth/recuperar` con uno de los tres parámetros de estado.
-- [ ] El HTML servido no contiene `SUPABASE_SECRET_API_KEY`, `SMTP_PASS` ni el `hashed_token` del enlace.
+- [x] `npm run build` termina correctamente (solo los avisos no fatales `Invalid empty selector` de daisyUI).
+- [x] `npx tsc --noEmit` no reporta errores.
+- [x] `npm run check` (`astro check`) no reporta errores en los `.astro`.
+- [x] El enlace «¿Olvidaste tu contraseña?» del login apunta a `/auth/recuperar`.
+- [x] `/auth/recuperar` muestra un campo de correo, un botón «Enviar enlace» y un enlace de vuelta al login.
+- [x] La ayuda del campo dice que el enlace se envía al correo escrito y la nota del formulario dice que, sin acceso a ese correo, hay que pedir una cuenta nueva al `admin`.
+- [x] Un correo con formato inválido devuelve la página con el mensaje de error y no genera ningún token.
+- [x] Con un correo **no registrado**, la respuesta visible es idéntica a la de un correo registrado y no llega ningún correo.
+- [x] Con un correo registrado de una cuenta **sin confirmar**, la respuesta visible es idéntica y no llega ningún correo.
+- [x] Con un correo registrado de una cuenta **inactiva**, la respuesta visible es idéntica y no llega ningún correo.
+- [x] Con un correo registrado de una cuenta confirmada y activa, llega un correo con un enlace que lleva a `/auth/confirm` y contiene `type=recovery`.
+- [x] El correo de recuperación llega a `public.usuarios.email` de la cuenta, que es la dirección registrada.
+- [x] La aplicación nunca envía un enlace a una dirección distinta de la registrada en la cuenta.
+- [x] El correo se envía desde la dirección SMTP de la aplicación y el asunto es «Restablece tu contraseña - Dona de Sangre».
+- [x] El correo saluda por el nombre de `public.usuarios.nombre` e indica que el enlace caduca en una hora y solo se usa una vez.
+- [x] Al abrir el enlace, se crea la sesión y la persona llega a `/auth/update-password` con el título «Elige tu nueva contraseña».
+- [x] Al guardar la contraseña nueva, se puede iniciar sesión con ella y la anterior ya no sirve.
+- [x] Un enlace ya usado o caducado lleva a la página de «Enlace no válido» y no permite cambiar la contraseña.
+- [x] Una persona sin acceso a su correo registrado recibe el mensaje de la nota del formulario y no encuentra ninguna vía de recuperación en la aplicación.
+- [x] Dos peticiones del mismo correo dentro de 60 s generan un solo correo; la segunda respuesta visible es la misma.
+- [x] Seis peticiones desde la misma IP dentro de 10 minutos se cortan a partir de la sexta; la respuesta visible es la misma.
+- [x] Un fallo del SMTP se registra en el log del servidor y la página muestra «No se pudo enviar el correo…».
+- [x] El log del servidor registra los casos descartados (correo inexistente, no confirmado, inactivo, límite alcanzado) **sin** el token de recuperación.
+- [x] `GET /api/auth/recovery` devuelve `405` con la cabecera `Allow: POST`.
+- [x] La respuesta del `POST` es una redirección a `/auth/recuperar` con uno de los tres parámetros de estado.
+- [x] El HTML servido no contiene `SUPABASE_SECRET_API_KEY`, `SMTP_PASS` ni el `hashed_token` del enlace.
 - [ ] A 320 px no hay scroll horizontal en `/auth/recuperar`.
-- [ ] No hay errores de JavaScript en la consola al abrir y enviar el formulario.
-- [ ] `README.md` y `AGENTS.md` reflejan la recuperación, la ruta nueva y el árbol final de `src/`.
+- [x] No hay errores de JavaScript en la consola al abrir y enviar el formulario.
+- [x] `README.md` y `AGENTS.md` reflejan la recuperación, la ruta nueva y el árbol final de `src/`.
 
 ## Decisiones tomadas y descartadas
 
@@ -347,23 +347,36 @@ src/
 
 ## Verificación
 
-> Pendiente de ejecutar en la implementación. Método previsto: servidor de desarrollo (`npx astro dev`), Playwright, MCP de Supabase en modo lectura, `npm run build`, `npx tsc --noEmit` y `npm run check`. El envío real de correo requiere una cuenta de prueba del laboratorio: el flujo genera un token real y lo consume, así que **no** es una simulación.
+> Verificado el 2026-11-16/17 con `npm run build`, `npx tsc --noEmit`, `npm run check`, dos servidores de desarrollo (`npx astro dev --port 4322/4323/4324`, uno de ellos con `SMTP_*` apuntando a un servidor SMTP local de captura) y Playwright. El envío real de correo se hizo contra ese SMTP local (sin salir a Internet) con la cuenta ficticia `alvaro.herrera@example.com`, de modo que el flujo generó y consumió tokens reales.
 
 | Criterio | Estado | Evidencia | Notas |
 | --- | --- | --- | --- |
-| `npm run build` termina correctamente | ⬜ | — | — |
-| `npx tsc --noEmit` no reporta errores | ⬜ | — | — |
-| `npm run check` no reporta errores | ⬜ | — | — |
-| El enlace del login lleva a `/auth/recuperar` | ⬜ | — | — |
-| La página muestra el formulario y los tres estados | ⬜ | — | — |
-| La respuesta no revela si la cuenta existe | ⬜ | — | — |
-| El correo llega al correo registrado de la cuenta | ⬜ | — | — |
-| El correo llega con el enlace de un solo uso | ⬜ | — | — |
-| El enlace crea la sesión y permite fijar la contraseña nueva | ⬜ | — | — |
-| La contraseña antigua deja de servir | ⬜ | — | — |
-| El enlace no se puede reutilizar | ⬜ | — | — |
-| Los límites de frecuencia cortan las peticiones repetidas | ⬜ | — | — |
-| El fallo de SMTP se registra y se muestra | ⬜ | — | — |
-| El HTML servido no incluye secretos | ⬜ | — | — |
-| Sin scroll horizontal a 320 px y sin errores de consola | ⬜ | — | — |
-| `README.md` y `AGENTS.md` al día | ⬜ | — | — |
+| `npm run build` termina correctamente | ✅ | «Complete!» en 14,45 s | Solo los 2 avisos no fatales `Invalid empty selector` de daisyUI |
+| `npx tsc --noEmit` no reporta errores | ✅ | Sin salida | — |
+| `npm run check` no reporta errores | ✅ | `Result (48 files): 0 errors, 0 warnings, 0 hints` | — |
+| El enlace del login lleva a `/auth/recuperar` | ✅ | HTML servido: `href="/auth/recuperar"` junto a «¿Olvidaste tu contraseña?» | — |
+| La página muestra el formulario y los tres estados | ✅ | Playwright: campo «Correo», botón «Enviar enlace», enlace «Volver a iniciar sesión», ayuda y nota; `?estado=enviado` → `alert-success`, `?error=email_invalido` y `?error=envio_fallido` → `alert-error` | El botón pasa a «Enviando…» y se deshabilita al enviar |
+| Un correo inválido no genera token y muestra el error | ✅ | `POST email=no-valido` (y `email=` vacío) → `303 /auth/recuperar?error=email_invalido` | La ruta responde antes de `consumeIpSlot` y de `generateLink` |
+| La respuesta no revela si la cuenta existe | ✅ | No registrado, sin confirmar, inactivo y registrado activo → los cuatro `303 /auth/recuperar?estado=enviado` | Solo el fallo de SMTP cambia la respuesta visible |
+| Sin correo para cuentas inexistentes, sin confirmar o inactivas | ✅ | Sin `.eml` capturado; log `descartado (not_found)`, `(unconfirmed)` e `(inactive)` | Probado con `nadie@example.com`, `andres.fuentes@example.com` y `david.romero@example.com` |
+| El correo llega al correo registrado de la cuenta | ✅ | `To: alvaro.herrera@example.com` en `mail-2.eml` y `mail-3.eml` | El destinatario es la fila de `public.usuarios`, no otro valor del formulario |
+| El correo se envía desde el SMTP de la aplicación con el asunto correcto | ✅ | `From: Dona de Sangre <…>` y asunto `Restablece tu contraseña - Dona de Sangre` | `SMTP_FROM` de `src/lib/smtp.ts` |
+| El correo saluda por el nombre e indica caducidad y un solo uso | ✅ | «Hola, Álvaro Herrera Díaz», «El enlace caduca en 1 hora y solo puede usarse una vez» | Texto y HTML (con el nombre, el correo y el enlace escapados) |
+| El correo llega con el enlace de un solo uso | ✅ | Enlace con `token_hash`, `type=recovery` y `next=%2Fauth%2Fupdate-password%3Fmotivo%3Drecuperacion` | — |
+| El enlace crea la sesión y permite fijar la contraseña nueva | ✅ | Playwright: el enlace redirige a `/auth/update-password?motivo=recuperacion`, título «Elige tu nueva contraseña», guardar → `303 /dashboard` | — |
+| La contraseña antigua deja de servir | ✅ | Antes del cambio se fijó `ViejaSegura123!` por la API admin; tras el flujo, `ViejaSegura123!` → `?error=invalid_credentials` y `NuevaSegura456!` → `/dashboard` | — |
+| El enlace no se puede reutilizar | ✅ | Segunda visita al mismo enlace → «Enlace no válido» (200) y `/dashboard` redirige a `/auth/login?next=%2Fdashboard` | Un cambio de contraseña previo también invalida el token (mismo resultado) |
+| Los límites de frecuencia cortan las peticiones repetidas | ✅ | Mismo correo dos veces seguidas: un solo `.eml`, mismo `303`, log `cooldown por correo activo`; 5 peticiones por IP pasan y la 6.ª se corta con log `límite por IP alcanzado` | Mismo mensaje visible en todos los casos |
+| El fallo de SMTP se registra y se muestra | ✅ | Dev server con `SMTP_PORT=2599` (puerto cerrado) → `303 /auth/recuperar?error=envio_fallido`; log `[auth/recovery] fallo SMTP: Error: connect ECONNREFUSED 127.0.0.1:2599` | — |
+| El log registra los descartes sin el token | ✅ | `grep` del `token_hash` y del token en el log de la instancia: 0 coincidencias | Solo el motivo y el correo |
+| `GET /api/auth/recovery` responde `405` con `Allow: POST` | ✅ | `405 Method Not Allowed` + `allow: POST` | — |
+| La respuesta del `POST` es una redirección con uno de los tres estados | ✅ | Todos los casos probados responden `303` a `/auth/recuperar` | — |
+| El HTML servido no incluye secretos | ✅ | `/auth/recuperar` y `dist/` sin `sb_secret_`, `SMTP_PASS`, `hashed_token` ni el token de la prueba | — |
+| Sin errores de JavaScript en consola al abrir y enviar | ✅ | Playwright: 0 errores al cargar y al enviar el formulario | — |
+| Sin scroll horizontal a 320 px | ❌ | `document.documentElement.scrollWidth` = 583 px con `clientWidth` = 305 px | Ver «Hallazgos»: la ayuda del formulario usa `class="label"`, que en daisyUI 5 aplica `white-space: nowrap` |
+| `README.md` y `AGENTS.md` al día | ✅ | README: `/auth/recuperar`, `POST /api/auth/recovery`, `src/lib/{email,smtp,supabase-admin}.ts` y `features/auth/lib/*`; AGENTS.md: mismas rutas y reglas de seguridad | — |
+
+### Hallazgos
+
+1. **Scroll horizontal a 320 px (criterio pendiente).** La ayuda del campo usa `<p class="label">` (`src/pages/auth/recuperar.astro`, línea 45). En daisyUI 5 `.label` aplica `display: flex` + `white-space: nowrap`, así que la frase larga no se envuelve y ensancha el documento hasta 583 px (el resto de pantallas de acceso se quedan en 320 px). Arreglo mínimo propuesto: quitar `class="label"` de ese párrafo (por ejemplo `class="text-sm opacity-70"`) o añadir `whitespace-normal`. No se tocó el código porque `spec-verifier` solo edita `specs/**`.
+2. **Efecto de la prueba.** `alvaro.herrera@example.com` (cuenta ficticia del seed) quedó con la contraseña `NuevaSegura456!`. El enlace de recuperación consumido y los tokens emitidos ya no valen.
